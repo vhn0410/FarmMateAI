@@ -1,0 +1,5 @@
+# GCP Service Account keys
+credentials.json
+*-key.json
+backend/.env
+*.env
