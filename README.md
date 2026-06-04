@@ -63,6 +63,3 @@ farm-mate-ai/
             ├── security.py          # Phân quyền, JWT
             └── exceptions.py        # Xử lý lỗi tập trung
 ```
-
-
-# pip install langchain-google-community[drive] langchain_openai langchain_postgres
