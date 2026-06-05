@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks
-from schemas.document_dto import (
+from app.schemas.document_dto import (
     SyncResponse,
 )  # Tạo schema pydantic để định dạng response
 from scripts.cron_ingest_drive import run_ingestion
