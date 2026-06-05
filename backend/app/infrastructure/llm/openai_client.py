@@ -1,17 +1,31 @@
 import os
 from langchain_openai import ChatOpenAI
+from app.domain.interfaces.llm_provider import ILLMProvider
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-def get_llm(model: str, temperature: float = 0.0) -> ChatOpenAI:
+class OpenAIClient(ILLMProvider):
     """
-    Khởi tạo LLM Client dùng chung cho toàn hệ thống.
-    Mặc định temperature = 0.0 để câu trả lời mang tính deterministic (chính xác, không sáng tạo thêm).
+    Lớp này đóng vai trò là một wrapper để khởi tạo và cung cấp LLM Client của OpenAI.
+    Mọi phần khác trong hệ thống khi cần dùng LLM đều sẽ gọi qua lớp này để đảm bảo tính nhất quán.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("Chưa cấu hình OPENAI_API_KEY trong file .env")
 
-    return ChatOpenAI(model=model, temperature=temperature, api_key=api_key)
+    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.0):
+        """Khởi tạo OpenAIClient và đảm bảo API key đã được cấu hình."""
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("Chưa cấu hình OPENAI_API_KEY trong file .env")
+        self._api_key = api_key
+        self._model = model
+        self._temperature = temperature
+
+    def get_llm(self) -> ChatOpenAI:
+        """
+        Khởi tạo LLM Client dùng chung cho toàn hệ thống.
+        Mặc định temperature = 0.0 để câu trả lời mang tính deterministic (chính xác, không sáng tạo thêm).
+        """
+        return ChatOpenAI(
+            model=self._model, temperature=self._temperature, api_key=self._api_key
+        )
