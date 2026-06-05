@@ -4,12 +4,13 @@ from langchain_core.documents import Document
 
 from app.agents.skills.base import BaseSkill
 from app.domain.interfaces.vector_db import IVectorStoreProvider
-from app.infrastructure.llm.openai_client import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import (
     create_stuff_documents_chain,
 )
 from langchain_classic.chains import create_retrieval_chain
+
+from app.domain.interfaces.llm_provider import ILLMProvider
 
 
 class AgricultureRAGSkill(BaseSkill):
@@ -19,13 +20,17 @@ class AgricultureRAGSkill(BaseSkill):
         "kỹ thuật canh tác và chất lượng nước. Đầu vào là câu hỏi của người dùng."
     )
 
-    def __init__(self, vector_store_provider: IVectorStoreProvider):
+    def __init__(
+        self, vector_store_provider: IVectorStoreProvider, llm_provider: ILLMProvider
+    ):
         """
         Khởi tạo Agriculture RAG Skill với Dependency Injection.
 
         :param vector_store_provider: Implementation của IVectorStoreProvider (ví dụ: PGVectorProvider)
+        :param llm_provider: Implementation của ILLMProvider (ví dụ: OpenAIClient)
         """
         self.vector_store_provider = vector_store_provider
+        self.llm_provider = llm_provider
 
         # Lấy retriever từ provider
         self.vector_retriever = self.vector_store_provider.as_retriever(
@@ -54,7 +59,7 @@ class AgricultureRAGSkill(BaseSkill):
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
         # ==========================================
-        llm = get_llm(model="gpt-4o-mini", temperature=0.0)
+        llm = self.llm_provider.get_llm()
         # Bê nguyên đoạn prompt xuất sắc của bạn từ notebook vào đây
         system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
             Quy tắc bắt buộc:

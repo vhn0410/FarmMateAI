@@ -17,8 +17,7 @@ def run_ingestion():
 
     # 2. "Tiêm" (Inject) các provider vào Use Case
     use_case = DocumentUseCase(
-        provider=drive_provider,
-        vector_store_provider=vector_store_provider
+        provider=drive_provider, vector_store_provider=vector_store_provider
     )
 
     # 3. Chạy
@@ -27,4 +26,3 @@ def run_ingestion():
 
 if __name__ == "__main__":
     run_ingestion()
-
