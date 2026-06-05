@@ -2,14 +2,15 @@ from langchain_community.retrievers.bm25 import BM25Retriever
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document
 
-from app.agents.skills.base import BaseSkill  # Interface chuẩn từ Clean Architecture
-from app.infrastructure.vector_store.pgvector_db import get_vector_store
-from app.infrastructure.llm.openai_client import get_llm
+from app.agents.skills.base import BaseSkill
+from app.domain.interfaces.vector_db import IVectorStoreProvider
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import (
     create_stuff_documents_chain,
 )
 from langchain_classic.chains import create_retrieval_chain
+
+from app.domain.interfaces.llm_provider import ILLMProvider
 
 
 class AgricultureRAGSkill(BaseSkill):
@@ -19,11 +20,22 @@ class AgricultureRAGSkill(BaseSkill):
         "kỹ thuật canh tác và chất lượng nước. Đầu vào là câu hỏi của người dùng."
     )
 
-    def __init__(self):
-        self.vector_store = get_vector_store()
+    def __init__(
+        self, vector_store_provider: IVectorStoreProvider, llm_provider: ILLMProvider
+    ):
+        """
+        Khởi tạo Agriculture RAG Skill với Dependency Injection.
 
-        # 1. Cấu hình Vector Retriever (Tìm theo ngữ nghĩa)
-        self.vector_retriever = self.vector_store.as_retriever(search_kwargs={"k": 5})
+        :param vector_store_provider: Implementation của IVectorStoreProvider (ví dụ: PGVectorProvider)
+        :param llm_provider: Implementation của ILLMProvider (ví dụ: OpenAIClient)
+        """
+        self.vector_store_provider = vector_store_provider
+        self.llm_provider = llm_provider
+
+        # Lấy retriever từ provider
+        self.vector_retriever = self.vector_store_provider.as_retriever(
+            search_kwargs={"k": 5}
+        )
 
         # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
         # Bắt buộc phải query lại toàn bộ DB để load data cho BM25 nếu dùng in-memory của Langchain
@@ -47,7 +59,7 @@ class AgricultureRAGSkill(BaseSkill):
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
         # ==========================================
-        llm = get_llm(model="gpt-4o-mini", temperature=0.0)
+        llm = self.llm_provider.get_llm()
         # Bê nguyên đoạn prompt xuất sắc của bạn từ notebook vào đây
         system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
             Quy tắc bắt buộc:
@@ -76,11 +88,16 @@ class AgricultureRAGSkill(BaseSkill):
 
     def _load_all_docs_from_db(self) -> list[Document]:
         """Utility lấy toàn bộ chunks từ DB để build BM25 Index."""
+        print("Đang nạp dữ liệu từ DB cho BM25 Retriever...")
         try:
+            # Lấy raw vector store để truy cập PGVector internals
+            vector_store = self.vector_store_provider.get_raw_vector_store()
+
             # Lấy thông qua connection sqlalchemy của pgvector (ví dụ tham khảo)
             # Ở môi trường thực tế, cẩn thận tràn RAM nếu có hàng triệu chunks.
-            with self.vector_store._make_session() as session:
-                records = session.query(self.vector_store.EmbeddingStore).all()
+            with vector_store._make_session() as session:
+                records = session.query(vector_store.EmbeddingStore).all()
+                print(f"Truy vấn DB thành công, nạp {len(records)} bản ghi cho BM25.")
                 return [
                     Document(page_content=r.document, metadata=r.cmetadata)
                     for r in records
@@ -104,3 +121,5 @@ class AgricultureRAGSkill(BaseSkill):
 
         except Exception as e:
             return f"[Lỗi truy xuất hệ thống: {str(e)}]"
+
+        # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
