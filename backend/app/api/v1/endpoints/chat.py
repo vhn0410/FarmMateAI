@@ -5,6 +5,7 @@ from app.application.chat.use_case import ChatUseCase
 router = APIRouter()
 chat_use_case = ChatUseCase()
 
+
 @router.post("/", response_model=ChatResponse)
 async def chat_with_farmmate(request: ChatRequest):
     """

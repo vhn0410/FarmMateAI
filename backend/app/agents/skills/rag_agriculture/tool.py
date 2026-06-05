@@ -2,7 +2,7 @@ from langchain_community.retrievers.bm25 import BM25Retriever
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document
 
-from app.agents.skills.base import BaseSkill                    # Interface chuẩn từ Clean Architecture
+from app.agents.skills.base import BaseSkill  # Interface chuẩn từ Clean Architecture
 from app.infrastructure.vector_store.pgvector_db import get_vector_store
 from app.infrastructure.llm.openai_client import get_llm
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,6 +10,7 @@ from langchain_classic.chains.combine_documents import (
     create_stuff_documents_chain,
 )
 from langchain_classic.chains import create_retrieval_chain
+
 
 class AgricultureRAGSkill(BaseSkill):
     name = "Tu_van_ky_thuat_nong_nghiep"
@@ -42,14 +43,13 @@ class AgricultureRAGSkill(BaseSkill):
         else:
             # Fallback nếu DB trống
             self.retriever = self.vector_retriever
-        
+
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
         # ==========================================
         llm = get_llm(model="gpt-4o-mini", temperature=0.0)
         # Bê nguyên đoạn prompt xuất sắc của bạn từ notebook vào đây
-        system_prompt = (
-            """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
+        system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
             Quy tắc bắt buộc:
             1. KHÔNG SUY DIỄN: Chỉ sử dụng thông tin có trong ngữ cảnh. Không thêm kiến thức bên ngoài, không tự ý giải thích hoặc kết luận nếu ngữ cảnh không ghi rõ.
             2. ĐỐI SÁNH SỐ LIỆU CHÍNH XÁC (QUAN TRỌNG):
@@ -62,17 +62,17 @@ class AgricultureRAGSkill(BaseSkill):
             6. HÌNH THỨC: Câu trả lời cần súc tích, cấu trúc rõ ràng (nhận định → số liệu trích dẫn cụ thể → đề xuất nếu có).
 
             Ngữ cảnh: {context}"""
-        )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("user", "{input}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", system_prompt),
+                ("user", "{input}"),
+            ]
+        )
 
         # Khởi tạo RAG Chain nội bộ cho Skill này
         document_qa_chain = create_stuff_documents_chain(llm, prompt)
         self.qa_chain = create_retrieval_chain(self.retriever, document_qa_chain)
-
 
     def _load_all_docs_from_db(self) -> list[Document]:
         """Utility lấy toàn bộ chunks từ DB để build BM25 Index."""
@@ -91,16 +91,16 @@ class AgricultureRAGSkill(BaseSkill):
 
     def run(self, query: str, **kwargs) -> str:
         """
-        Thực thi RAG Chain. Thay vì trả về raw text, Skill này trả về luôn câu trả lời 
+        Thực thi RAG Chain. Thay vì trả về raw text, Skill này trả về luôn câu trả lời
         đã được nhào nặn chặt chẽ bởi prompt không suy diễn.
         """
         try:
             # Lưu ý key "input" để khớp với format của create_retrieval_chain
             result = self.qa_chain.invoke({"input": query})
-            
+
             # Lấy câu trả lời chính thức từ chuỗi
             final_answer = result.get("answer", "")
             return final_answer
-            
+
         except Exception as e:
             return f"[Lỗi truy xuất hệ thống: {str(e)}]"

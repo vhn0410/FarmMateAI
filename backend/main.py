@@ -5,12 +5,13 @@ from app.api.v1.router import api_router
 app = FastAPI(
     title="FarmMate AI API",
     description="Hệ thống Backend AI tư vấn nông nghiệp",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Gắn toàn bộ router v1 vào ứng dụng chính
 # Tiền tố ở lớp ngoài cùng là /api/v1
 app.include_router(api_router, prefix="/api/v1")
+
 
 # Một API nhỏ để kiểm tra server có đang chạy hay không
 @app.get("/")
