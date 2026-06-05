@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -14,7 +15,16 @@ from app.domain.interfaces.document_provider import IDocumentProvider
 load_dotenv()
 DRIVE_NEW_FOLDER_ID = os.getenv("DRIVE_NEW_FOLDER_ID")
 DRIVE_PROCESSED_FOLDER_ID = os.getenv("DRIVE_PROCESSED_FOLDER_ID")
-CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+
+# Resolve credentials.json từ backend root directory (tự động, không phụ thuộc cwd)
+_backend_dir = Path(__file__).resolve().parents[3]  # Up 3 levels: external/ -> infrastructure/ -> app/ -> backend/
+_creds_env = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+
+# Nếu là relative path, resolve từ backend root; nếu là absolute path, dùng nguyên
+if Path(_creds_env).is_absolute():
+    CREDENTIALS_PATH = _creds_env
+else:
+    CREDENTIALS_PATH = str(_backend_dir / _creds_env)
 
 
 class MemoryTextLoader:
@@ -37,6 +47,13 @@ class GoogleDriveProvider(IDocumentProvider):
 
     def _get_drive_service(self):
         """Khởi tạo Google Drive API Client."""
+        # Check if credentials file exists
+        if not Path(CREDENTIALS_PATH).exists():
+            raise FileNotFoundError(
+                f"Credentials file not found at: {CREDENTIALS_PATH}\n"
+                f"Please ensure credentials.json exists in the backend root directory."
+            )
+        
         scopes = ["https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
         service = build("drive", "v3", credentials=creds)
