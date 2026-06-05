@@ -76,11 +76,13 @@ class AgricultureRAGSkill(BaseSkill):
 
     def _load_all_docs_from_db(self) -> list[Document]:
         """Utility lấy toàn bộ chunks từ DB để build BM25 Index."""
+        print("Đang nạp dữ liệu từ DB cho BM25 Retriever...")
         try:
             # Lấy thông qua connection sqlalchemy của pgvector (ví dụ tham khảo)
             # Ở môi trường thực tế, cẩn thận tràn RAM nếu có hàng triệu chunks.
             with self.vector_store._make_session() as session:
                 records = session.query(self.vector_store.EmbeddingStore).all()
+                print(f"Truy vấn DB thành công, nạp {len(records)} bản ghi cho BM25.")
                 return [
                     Document(page_content=r.document, metadata=r.cmetadata)
                     for r in records
