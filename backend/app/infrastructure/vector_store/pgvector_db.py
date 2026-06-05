@@ -3,7 +3,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 from dotenv import load_dotenv
 
-load_dotenv()  
+load_dotenv()
 # Đọc từ biến môi trường (cấu hình trong file .env)
 DB_CONNECTION = os.getenv(
     "POSTGRES_CONNECTION_STRING", "postgresql+psycopg2://user:pass@localhost:5432/db"

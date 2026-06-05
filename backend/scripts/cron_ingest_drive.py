@@ -42,13 +42,13 @@ def run_ingestion():
     processed_file_ids = set()
     for doc in raw_documents:
         source_file = doc.metadata.get("source", "Unknown")
-        
+
         file_id_for_moving = source_file
         if "drive.google.com/file/d/" in source_file:
             # Splits the URL at '/d/' and takes the ID part before '/view'
             file_id_for_moving = source_file.split("/d/")[1].split("/")[0]
         processed_file_ids.add(file_id_for_moving)
-        
+
         file_name = os.path.basename(source_file)
 
         # Cắt Lần 1: Theo cấu trúc Markdown

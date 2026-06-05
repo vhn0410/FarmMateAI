@@ -1,6 +1,7 @@
 import os
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+
 # from langchain_google_community import GoogleDriveLoader
 from langchain_community.document_loaders import GoogleDriveLoader
 from dotenv import load_dotenv
@@ -20,8 +21,10 @@ def get_drive_service():
     service = build("drive", "v3", credentials=creds)
     return service
 
+
 class MemoryTextLoader:
     """Reads in-memory file objects downloaded from Google Drive."""
+
     def __init__(self, file, **kwargs):
         self.file = file
 
@@ -29,7 +32,8 @@ class MemoryTextLoader:
         # Decode the raw bytes into a readable string
         content = self.file.read().decode("utf-8")
         return [Document(page_content=content)]
-    
+
+
 def load_new_markdown_from_drive() -> list:
     """Đọc tài liệu từ thư mục NEW."""
     loader = GoogleDriveLoader(
