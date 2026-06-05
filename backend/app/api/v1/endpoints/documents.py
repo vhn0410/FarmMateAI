@@ -1,17 +1,28 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 from app.schemas.document_dto import (
     SyncResponse,
-)  # Tạo schema pydantic để định dạng response
+)
 from app.application.documents.use_case import DocumentUseCase
 from app.infrastructure.external.google_drive import GoogleDriveProvider
+from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 
 router = APIRouter()
 
 
-# Hàm hỗ trợ lắp ráp để FastAPI tự động tiêm
-def get_document_use_case():
+# Hàm hỗ trợ để FastAPI tự động tiêm dependencies
+def get_vector_store_provider():
+    """Factory function để tạo PGVectorProvider instance."""
+    return PGVectorProvider()
+
+
+def get_document_use_case(
+    vector_store_provider: PGVectorProvider = Depends(get_vector_store_provider),
+):
+    """Factory function để tạo DocumentUseCase với Dependency Injection."""
     drive_provider = GoogleDriveProvider()
-    return DocumentUseCase(provider=drive_provider)
+    return DocumentUseCase(
+        provider=drive_provider, vector_store_provider=vector_store_provider
+    )
 
 
 @router.post("/sync-knowledge", response_model=SyncResponse)

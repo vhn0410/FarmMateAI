@@ -1,20 +1,39 @@
 import os
 import uuid
 from app.domain.interfaces.document_provider import IDocumentProvider
+from app.domain.interfaces.vector_db import IVectorStoreProvider
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from app.infrastructure.vector_store.pgvector_db import get_vector_store
 
 
 class DocumentUseCase:
-    # 1. BẮT BUỘC TRUYỀN VÀO TỪ BÊN NGOÀI (Dependency Injection)
-    def __init__(self, provider: IDocumentProvider):
+    """
+    Use Case cho việc đồng bộ tài liệu từ provider và lưu vào vector store.
+
+    Sử dụng Dependency Injection cho cả document provider và vector store provider.
+    """
+
+    def __init__(
+        self, provider: IDocumentProvider, vector_store_provider: IVectorStoreProvider
+    ):
+        """
+        Khởi tạo DocumentUseCase với Dependency Injection.
+
+        :param provider: Implementation của IDocumentProvider (ví dụ: GoogleDriveProvider)
+        :param vector_store_provider: Implementation của IVectorStoreProvider (ví dụ: PGVectorProvider)
+        """
         self.provider = provider
+        self.vector_store_provider = vector_store_provider
 
     def sync_documents(self):
-        # 2. Sử dụng các hàm của Interface một cách an toàn
+        """
+        Đồng bộ tài liệu từ document provider, chunk hóa, và lưu vào vector store.
+
+        :return: Status message
+        """
+        # 1. Lấy tài liệu mới từ provider
         raw_documents = self.provider.fetch_new_documents()
 
         if not raw_documents:
@@ -78,12 +97,12 @@ class DocumentUseCase:
 
                 final_chunks.append(chunk)
 
-        print(f"Đã cắt thành {len(final_chunks)} chunks. Đang lưu vào PGVector...")
+        print(f"Đã cắt thành {len(final_chunks)} chunks. Đang lưu vào vector store...")
 
-        # 4. Lưu vào PGVector
-        vector_store = get_vector_store()
-        vector_store.add_documents(final_chunks)
+        # 4. Lưu vào vector store thông qua provider (Dependency Injection)
+        self.vector_store_provider.add_documents(final_chunks)
         print(" Đã lưu thành công vào Database.")
+
         # 5. ĐÁNH DẤU HOÀN TẤT BẰNG CÁCH DI CHUYỂN FILE
         print("Đang di chuyển các file đã xử lý...")
         for file_id in processed_file_ids:
