@@ -1,25 +1,14 @@
-"""
-PGVector Provider Implementation
-
-Đây là concrete implementation của IVectorStoreProvider sử dụng PostgreSQL + pgvector.
-Nó bao gói (wrap) PGVector object và implement Interface chuẩn.
-"""
-
 from typing import List, Any
 from langchain_core.documents import Document
 from app.domain.interfaces.vector_db import IVectorStoreProvider
-import os
+
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
-from dotenv import load_dotenv
-
-load_dotenv()
+from app.core.config import settings
 
 # Đọc từ biến môi trường (cấu hình trong file .env)
-DB_CONNECTION = os.getenv(
-    "POSTGRES_CONNECTION_STRING", "postgresql+psycopg2://user:pass@localhost:5432/db"
-)
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "enterprise_rag_documents")
+DB_CONNECTION = settings.postgres_connection_string
+COLLECTION_NAME = settings.collection_name
 
 
 class PGVectorProvider(IVectorStoreProvider):
@@ -42,7 +31,7 @@ class PGVectorProvider(IVectorStoreProvider):
         )
 
     def _get_embeddings_model(self):
-        return OpenAIEmbeddings(model="text-embedding-3-small")
+        return OpenAIEmbeddings(model="text-embedding-3-small", api_key=settings.openai_api_key)
 
     def add_documents(self, documents: List[Document]) -> None:
         """
