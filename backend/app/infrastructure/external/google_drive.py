@@ -5,16 +5,15 @@ from googleapiclient.discovery import build
 
 # from langchain_google_community import GoogleDriveLoader
 from langchain_community.document_loaders import GoogleDriveLoader
-from dotenv import load_dotenv
+
 from langchain_core.documents import Document
 
 # Import Interface từ tầng Domain
 from app.domain.interfaces.document_provider import IDocumentProvider
+from app.core.config import settings
 
-# Load các ID từ file .env
-load_dotenv()
-DRIVE_NEW_FOLDER_ID = os.getenv("DRIVE_NEW_FOLDER_ID")
-DRIVE_PROCESSED_FOLDER_ID = os.getenv("DRIVE_PROCESSED_FOLDER_ID")
+DRIVE_NEW_FOLDER_ID = settings.drive_new_folder_id
+DRIVE_PROCESSED_FOLDER_ID = settings.drive_processed_folder_id
 
 # Resolve credentials.json từ backend root directory (tự động, không phụ thuộc cwd)
 _backend_dir = (
