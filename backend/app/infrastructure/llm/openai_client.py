@@ -1,9 +1,7 @@
-import os
 from langchain_openai import ChatOpenAI
 from app.domain.interfaces.llm_provider import ILLMProvider
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.config import settings
 
 
 class OpenAIClient(ILLMProvider):
@@ -14,7 +12,7 @@ class OpenAIClient(ILLMProvider):
 
     def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.0):
         """Khởi tạo OpenAIClient và đảm bảo API key đã được cấu hình."""
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = settings.openai_api_key
         if not api_key:
             raise ValueError("Chưa cấu hình OPENAI_API_KEY trong file .env")
         self._api_key = api_key
