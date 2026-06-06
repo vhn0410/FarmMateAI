@@ -1,15 +1,15 @@
+from typing import Optional, Dict
+
 from langchain_community.retrievers.bm25 import BM25Retriever
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document
-
-from app.agents.skills.base import BaseSkill
-from app.domain.interfaces.vector_db import IVectorStoreProvider
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_classic.chains.combine_documents import (
-    create_stuff_documents_chain,
-)
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains import create_retrieval_chain
+from langchain_community.callbacks.manager import get_openai_callback
 
+from app.agents.skills.base import BaseSkill, SkillResult
+from app.domain.interfaces.vector_db import IVectorStoreProvider
 from app.domain.interfaces.llm_provider import ILLMProvider
 
 
@@ -26,21 +26,18 @@ class AgricultureRAGSkill(BaseSkill):
         """
         Khởi tạo Agriculture RAG Skill với Dependency Injection.
 
-        :param vector_store_provider: Implementation của IVectorStoreProvider (ví dụ: PGVectorProvider)
-        :param llm_provider: Implementation của ILLMProvider (ví dụ: OpenAIClient)
+        :param vector_store_provider: Implementation của IVectorStoreProvider
+        :param llm_provider: Implementation của ILLMProvider
         """
         self.vector_store_provider = vector_store_provider
         self.llm_provider = llm_provider
 
-        # Lấy retriever từ provider
+        # 1. Lấy retriever từ provider
         self.vector_retriever = self.vector_store_provider.as_retriever(
             search_kwargs={"k": 5}
         )
 
         # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
-        # Bắt buộc phải query lại toàn bộ DB để load data cho BM25 nếu dùng in-memory của Langchain
-        # Lời khuyên của Senior: Lên Production nên đổi BM25 thành ElasticSearch
-        # hoặc dùng PostgreSQL Full-Text Search để tối ưu RAM.
         all_docs = self._load_all_docs_from_db()
         if all_docs:
             print(f"Đã nạp {len(all_docs)} tài liệu cho BM25 Retriever.")
@@ -60,7 +57,7 @@ class AgricultureRAGSkill(BaseSkill):
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
         # ==========================================
         llm = self.llm_provider.get_llm()
-        # Bê nguyên đoạn prompt xuất sắc của bạn từ notebook vào đây
+        
         system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
             Quy tắc bắt buộc:
             1. KHÔNG SUY DIỄN: Chỉ sử dụng thông tin có trong ngữ cảnh. Không thêm kiến thức bên ngoài, không tự ý giải thích hoặc kết luận nếu ngữ cảnh không ghi rõ.
@@ -93,8 +90,6 @@ class AgricultureRAGSkill(BaseSkill):
             # Lấy raw vector store để truy cập PGVector internals
             vector_store = self.vector_store_provider.get_raw_vector_store()
 
-            # Lấy thông qua connection sqlalchemy của pgvector (ví dụ tham khảo)
-            # Ở môi trường thực tế, cẩn thận tràn RAM nếu có hàng triệu chunks.
             with vector_store._make_session() as session:
                 records = session.query(vector_store.EmbeddingStore).all()
                 print(f"Truy vấn DB thành công, nạp {len(records)} bản ghi cho BM25.")
@@ -106,20 +101,81 @@ class AgricultureRAGSkill(BaseSkill):
             print(f"Cảnh báo: Không thể nạp dữ liệu cho BM25: {e}")
             return []
 
-    def run(self, query: str, **kwargs) -> str:
+    def run(self, query: str, **kwargs) -> SkillResult:
         """
-        Thực thi RAG Chain. Thay vì trả về raw text, Skill này trả về luôn câu trả lời
-        đã được nhào nặn chặt chẽ bởi prompt không suy diễn.
+        Thực thi RAG Chain và capture metadata (sources, tokens, actions).
+        Sử dụng get_openai_callback để đo chính xác token tiêu thụ.
         """
-        try:
-            # Lưu ý key "input" để khớp với format của create_retrieval_chain
-            result = self.qa_chain.invoke({"input": query})
+        agent_actions = []
+        tokens_used: Optional[Dict[str, int]] = None
+        retrieved_docs = []
+        sources = []
 
-            # Lấy câu trả lời chính thức từ chuỗi
-            final_answer = result.get("answer", "")
-            return final_answer
+        try:
+            # ===== STEP 1: Retrieve Documents =====
+            agent_actions.append(f"Retrieving relevant documents for query: '{query[:50]}...'")
+            retrieved_docs = self.retriever.invoke(query)
+            agent_actions.append(f"Retrieved {len(retrieved_docs)} documents from vector store")
+
+            # ===== STEP 2: Extract Source Metadata =====
+            for idx, doc in enumerate(retrieved_docs[:5]):  # Top 5 docs
+                metadata = doc.metadata or {}
+                source_obj = {
+                    "doc_index": idx,
+                    "file_name": metadata.get("file_name", "Unknown"),
+                    "hierarchy": metadata.get("document_hierarchy", "Unknown"),
+                    "content_snippet": doc.page_content[:200],  # First 200 chars
+                    "chunk_id": metadata.get("chunk_id", ""),
+                }
+                sources.append(source_obj)
+
+            # ===== STEP 3 & 4: Invoke QA Chain VÀ Đếm Token =====
+            agent_actions.append("Generating answer using LLM with RAG context")
+            
+            # Sử dụng Context Manager của Langchain để bắt trọn thông số Token
+            with get_openai_callback() as cb:
+                result = self.qa_chain.invoke({"input": query})
+                
+                # Sau khi thực thi xong chain, biến cb sẽ chứa đầy đủ thông tin usage
+                if cb.total_tokens > 0:
+                    tokens_used = {
+                        "prompt_tokens": cb.prompt_tokens,
+                        "completion_tokens": cb.completion_tokens,
+                        "total_tokens": cb.total_tokens,
+                    }
+                    agent_actions.append(
+                        f"Consumed {cb.total_tokens} tokens from LLM "
+                        f"(prompt: {cb.prompt_tokens}, completion: {cb.completion_tokens})"
+                    )
+                else:
+                    agent_actions.append("Token tracking: Không ghi nhận được token nào tiêu thụ.")
+
+            # ===== STEP 5: Get Final Answer =====
+            final_answer = result.get("answer", "Không có câu trả lời.")
+            agent_actions.append("Answer generation complete")
+
+            # ===== RETURN SkillResult =====
+            return SkillResult(
+                answer=final_answer,
+                skill_name=self.name,
+                metadata={
+                    "sources": sources,
+                    "retrieved_docs_count": len(retrieved_docs),
+                    "top_sources": sources[:3],  # Top 3 for quick access
+                },
+                tokens_used=tokens_used,
+                agent_actions=agent_actions,
+            )
 
         except Exception as e:
-            return f"[Lỗi truy xuất hệ thống: {str(e)}]"
-
-        # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
+            error_msg = f"[Lỗi truy xuất hệ thống: {str(e)}]"
+            import traceback
+            agent_actions.append(f"Error occurred: {str(e)}")
+            agent_actions.append(f"Traceback: {traceback.format_exc()[:100]}")
+            return SkillResult(
+                answer=error_msg,
+                skill_name=self.name,
+                metadata={"sources": sources, "retrieved_docs_count": 0, "top_sources": []},
+                tokens_used=tokens_used,
+                agent_actions=agent_actions,
+            )

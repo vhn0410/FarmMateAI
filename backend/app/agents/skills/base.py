@@ -1,5 +1,30 @@
 # app/agents/skills/base.py
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+
+@dataclass
+class SkillResult:
+    """
+    Kết quả chung của mọi Skill. Mỗi skill có thể define riêng cấu trúc của metadata
+    dựa trên nhu cầu của nó.
+
+    Ví dụ:
+    - RAG Skill: metadata = {"sources": [...], "retrieved_docs": [...]}
+    - Weather Skill (future): metadata = {"location": "...", "temperature": ..., "forecast": [...]}
+    - Sensor Skill (future): metadata = {"device_id": "...", "readings": [...]}
+    """
+
+    answer: str  # Câu trả lời chính (bắt buộc)
+    skill_name: str  # Tên skill (bắt buộc) - để use_case biết xử lý metadata thế nào
+    metadata: Dict[str, Any] = field(
+        default_factory=dict
+    )  # Metadata linh hoạt từng skill
+    tokens_used: Optional[Dict[str, int]] = None  # {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    agent_actions: List[str] = field(
+        default_factory=list
+    )  # ["Retrieved N documents", "Generated answer", ...]
 
 
 class BaseSkill(ABC):
@@ -17,18 +42,18 @@ class BaseSkill(ABC):
     description: str
 
     @abstractmethod
-    def run(self, query: str, **kwargs) -> str:
+    def run(self, query: str, **kwargs) -> SkillResult:
         """
         Hàm thực thi chính đồng bộ (Synchronous).
         Mọi class kế thừa BẮT BUỘC phải viết đè (override) hàm này.
 
         :param query: Đầu vào mà LLM truyền cho công cụ (thường là câu hỏi của user).
         :param kwargs: Các tham số linh hoạt khác.
-        :return: Kết quả xử lý dưới dạng chuỗi (String) để LLM đọc và tổng hợp.
+        :return: SkillResult chứa answer, metadata, tokens_used, agent_actions.
         """
         pass
 
-    async def arun(self, query: str, **kwargs) -> str:
+    async def arun(self, query: str, **kwargs) -> SkillResult:
         """
         Hàm thực thi bất đồng bộ (Asynchronous).
         (Không bắt buộc phải override nếu skill chỉ chạy đồng bộ).
