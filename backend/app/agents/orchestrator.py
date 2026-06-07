@@ -68,7 +68,9 @@ def get_chat_agent():
     return agent
 
 
-def get_last_skill_result(skill_name: str = "Tu_van_ky_thuat_nong_nghiep") -> Optional[SkillResult]:
+def get_last_skill_result(
+    skill_name: str = "Tu_van_ky_thuat_nong_nghiep",
+) -> Optional[SkillResult]:
     """
     Lấy SkillResult từ cache sau khi Agent execution.
     Dùng trong use_case để lấy metadata (sources, tokens, actions).

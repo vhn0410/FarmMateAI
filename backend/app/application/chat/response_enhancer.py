@@ -2,10 +2,10 @@
 Helper module để generate suggested questions, extract sources, và aggregate tokens.
 Xử lý logic để populate các field trong ChatResponse từ SkillResult.
 """
+
 from typing import List, Dict, Any, Optional
 from app.schemas.chat_dto import SourceDocument, TokenUsage
 from app.domain.interfaces.llm_provider import ILLMProvider
-import re
 
 
 class ResponseEnhancer:
@@ -98,7 +98,7 @@ class ResponseEnhancer:
         :param llm_provider: LLM provider để generate questions
         :return: Danh sách suggested questions (up to 3)
         """
-        
+
         try:
             llm = llm_provider.get_llm()
 
