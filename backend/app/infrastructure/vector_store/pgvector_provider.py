@@ -31,7 +31,9 @@ class PGVectorProvider(IVectorStoreProvider):
         )
 
     def _get_embeddings_model(self):
-        return OpenAIEmbeddings(model="text-embedding-3-small", api_key=settings.openai_api_key)
+        return OpenAIEmbeddings(
+            model="text-embedding-3-small", api_key=settings.openai_api_key
+        )
 
     def add_documents(self, documents: List[Document]) -> None:
         """
