@@ -57,7 +57,7 @@ class AgricultureRAGSkill(BaseSkill):
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
         # ==========================================
         llm = self.llm_provider.get_llm()
-        
+
         system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
             Quy tắc bắt buộc:
             1. KHÔNG SUY DIỄN: Chỉ sử dụng thông tin có trong ngữ cảnh. Không thêm kiến thức bên ngoài, không tự ý giải thích hoặc kết luận nếu ngữ cảnh không ghi rõ.
@@ -113,9 +113,13 @@ class AgricultureRAGSkill(BaseSkill):
 
         try:
             # ===== STEP 1: Retrieve Documents =====
-            agent_actions.append(f"Retrieving relevant documents for query: '{query[:50]}...'")
+            agent_actions.append(
+                f"Retrieving relevant documents for query: '{query[:50]}...'"
+            )
             retrieved_docs = self.retriever.invoke(query)
-            agent_actions.append(f"Retrieved {len(retrieved_docs)} documents from vector store")
+            agent_actions.append(
+                f"Retrieved {len(retrieved_docs)} documents from vector store"
+            )
 
             # ===== STEP 2: Extract Source Metadata =====
             for idx, doc in enumerate(retrieved_docs[:5]):  # Top 5 docs
@@ -131,11 +135,11 @@ class AgricultureRAGSkill(BaseSkill):
 
             # ===== STEP 3 & 4: Invoke QA Chain VÀ Đếm Token =====
             agent_actions.append("Generating answer using LLM with RAG context")
-            
+
             # Sử dụng Context Manager của Langchain để bắt trọn thông số Token
             with get_openai_callback() as cb:
                 result = self.qa_chain.invoke({"input": query})
-                
+
                 # Sau khi thực thi xong chain, biến cb sẽ chứa đầy đủ thông tin usage
                 if cb.total_tokens > 0:
                     tokens_used = {
@@ -148,7 +152,9 @@ class AgricultureRAGSkill(BaseSkill):
                         f"(prompt: {cb.prompt_tokens}, completion: {cb.completion_tokens})"
                     )
                 else:
-                    agent_actions.append("Token tracking: Không ghi nhận được token nào tiêu thụ.")
+                    agent_actions.append(
+                        "Token tracking: Không ghi nhận được token nào tiêu thụ."
+                    )
 
             # ===== STEP 5: Get Final Answer =====
             final_answer = result.get("answer", "Không có câu trả lời.")
@@ -170,12 +176,17 @@ class AgricultureRAGSkill(BaseSkill):
         except Exception as e:
             error_msg = f"[Lỗi truy xuất hệ thống: {str(e)}]"
             import traceback
+
             agent_actions.append(f"Error occurred: {str(e)}")
             agent_actions.append(f"Traceback: {traceback.format_exc()[:100]}")
             return SkillResult(
                 answer=error_msg,
                 skill_name=self.name,
-                metadata={"sources": sources, "retrieved_docs_count": 0, "top_sources": []},
+                metadata={
+                    "sources": sources,
+                    "retrieved_docs_count": 0,
+                    "top_sources": [],
+                },
                 tokens_used=tokens_used,
                 agent_actions=agent_actions,
             )

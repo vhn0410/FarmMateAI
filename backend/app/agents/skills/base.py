@@ -21,7 +21,9 @@ class SkillResult:
     metadata: Dict[str, Any] = field(
         default_factory=dict
     )  # Metadata linh hoạt từng skill
-    tokens_used: Optional[Dict[str, int]] = None  # {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    tokens_used: Optional[Dict[str, int]] = (
+        None  # {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    )
     agent_actions: List[str] = field(
         default_factory=list
     )  # ["Retrieved N documents", "Generated answer", ...]
