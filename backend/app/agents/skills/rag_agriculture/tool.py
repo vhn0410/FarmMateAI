@@ -11,6 +11,7 @@ from langchain_community.callbacks.manager import get_openai_callback
 from app.agents.skills.base import BaseSkill, SkillResult
 from app.domain.interfaces.vector_db import IVectorStoreProvider
 from app.domain.interfaces.llm_provider import ILLMProvider
+import logging
 
 
 class AgricultureRAGSkill(BaseSkill):
@@ -39,19 +40,20 @@ class AgricultureRAGSkill(BaseSkill):
 
         # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
         all_docs = self._load_all_docs_from_db()
-        if all_docs:
-            print(f"Đã nạp {len(all_docs)} tài liệu cho BM25 Retriever.")
-            self.bm25_retriever = BM25Retriever.from_documents(all_docs)
-            self.bm25_retriever.k = 5
 
-            # 3. Kết hợp thành Hybrid Search
-            self.retriever = EnsembleRetriever(
-                retrievers=[self.bm25_retriever, self.vector_retriever],
-                weights=[0.5, 0.5],
+        if not all_docs:
+            logging.warning(
+                "Cảnh báo: Không nạp được tài liệu nào cho BM25 Retriever. "
+                "BM25 sẽ không hoạt động, chỉ có Vector Search."
             )
-        else:
-            # Fallback nếu DB trống
             self.retriever = self.vector_retriever
+            return
+
+        self.bm25_retriever = self._create_bm25_retriever(all_docs=all_docs, top_k=5)
+
+        self.retriever = self._create_hybrid_retriever(
+            self.bm25_retriever, self.vector_retriever
+        )
 
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
@@ -82,6 +84,24 @@ class AgricultureRAGSkill(BaseSkill):
         # Khởi tạo RAG Chain nội bộ cho Skill này
         document_qa_chain = create_stuff_documents_chain(llm, prompt)
         self.qa_chain = create_retrieval_chain(self.retriever, document_qa_chain)
+
+    def _create_bm25_retriever(
+        self, all_docs: list[Document], top_k: int = 5
+    ) -> BM25Retriever:
+        """Khởi tạo và cấu hình BM25 Retriever."""
+        logging.info(f"Đã nạp {len(all_docs)} tài liệu cho BM25 Retriever.")
+        bm25_retriever = BM25Retriever.from_documents(all_docs)
+        bm25_retriever.k = top_k
+        return bm25_retriever
+
+    def _create_hybrid_retriever(
+        self, bm25_retriever: BM25Retriever, vector_retriever: IVectorStoreProvider
+    ) -> EnsembleRetriever:
+        """Kết hợp các retrievers thành Hybrid Search (EnsembleRetriever)."""
+        return EnsembleRetriever(
+            retrievers=[bm25_retriever, vector_retriever],
+            weights=[0.5, 0.5],
+        )
 
     def _load_all_docs_from_db(self) -> list[Document]:
         """Utility lấy toàn bộ chunks từ DB để build BM25 Index."""
