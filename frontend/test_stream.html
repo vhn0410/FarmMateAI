@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Test FarmMate AI Stream</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #chat-box { border: 1px solid #ccc; padding: 10px; min-height: 200px; width: 600px; white-space: pre-wrap; background: #f9f9f9; line-height: 1.5; }
+        .status { color: gray; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h2>Chatbot Nông Nghiệp (Streaming Test)</h2>
+    <button onclick="startChat()">Hỏi AI</button>
+    <br><br>
+    <div id="chat-box"></div>
+
+    <script>
+        async function startChat() {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML = ""; // Xóa nội dung cũ
+            
+            try {
+                // Gọi API với fetch
+                const response = await fetch("http://localhost:8000/api/v1/chat/stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: "Trồng dừa ở vùng đất mặn cần bón phân gì?", session_id: "test" })
+                });
+
+                // Đọc luồng dữ liệu liên tục
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    // Giải mã byte thành chuỗi text
+                    const chunk = decoder.decode(value, { stream: true });
+                    
+                    // SSE gửi về dạng "data: {json}\n\n", ta tách ra để xử lý
+                    const lines = chunk.split("\n\n");
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            const data = JSON.parse(line.replace("data: ", ""));
+                            
+                            // Xử lý từng loại Event
+                            if (data.event === "status") {
+                                chatBox.innerHTML += `<div class="status">${data.message}</div>`;
+                            } 
+                            else if (data.event === "token") {
+                                // Ghi nối từng chữ vào màn hình (Giống ChatGPT)
+                                chatBox.innerHTML += data.text;
+                            } 
+                            else if (data.event === "done") {
+                                console.log("Hoàn tất! Nguồn tham khảo:", data.sources);
+                                chatBox.innerHTML += `\n\n<hr><b>Đã xong!</b> Thời gian: ${data.metadata.processing_time_ms}ms`;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                chatBox.innerHTML += `<div style="color:red">Lỗi kết nối: ${error}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
