@@ -10,7 +10,7 @@ class OpenAIClient(ILLMProvider):
     Mọi phần khác trong hệ thống khi cần dùng LLM đều sẽ gọi qua lớp này để đảm bảo tính nhất quán.
     """
 
-    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.0):
+    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.0, streaming: bool = False):
         """Khởi tạo OpenAIClient và đảm bảo API key đã được cấu hình."""
         api_key = settings.openai_api_key
         if not api_key:
@@ -18,6 +18,7 @@ class OpenAIClient(ILLMProvider):
         self._api_key = api_key
         self._model = model
         self._temperature = temperature
+        self._streaming = streaming
 
     def get_llm(self) -> ChatOpenAI:
         """
@@ -25,5 +26,5 @@ class OpenAIClient(ILLMProvider):
         Mặc định temperature = 0.0 để câu trả lời mang tính deterministic (chính xác, không sáng tạo thêm).
         """
         return ChatOpenAI(
-            model=self._model, temperature=self._temperature, api_key=self._api_key
+            model=self._model, temperature=self._temperature, api_key=self._api_key, streaming=self._streaming
         )
