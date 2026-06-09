@@ -66,5 +66,7 @@ class PGVectorProvider(IVectorStoreProvider):
     def get_hybrid_retriever(self, k: int = 5):
         """Trả về Custom Hybrid Retriever sử dụng cả Vector và FTS."""
         return PostgresHybridRetriever(
-            connection_string=DB_CONNECTION, embeddings=self._get_embeddings_model(), top_k=k
+            connection_string=DB_CONNECTION,
+            embeddings=self._get_embeddings_model(),
+            top_k=k,
         )

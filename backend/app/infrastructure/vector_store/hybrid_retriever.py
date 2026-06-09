@@ -23,36 +23,7 @@ class PostgresHybridRetriever(BaseRetriever):
         query_embedding = self.embeddings.embed_query(query)
         query_embedding_str = str(query_embedding)  # Ép kiểu chuỗi để truyền vào SQL
 
-        # sql = """
-        #     WITH vector_search AS (
-        #         SELECT id, document, cmetadata,
-        #                RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank,
-        #                NULL::text AS match_keywords -- Vector search thì không hiện keyword
-        #         FROM langchain_pg_embedding
-        #         LIMIT 20
-        #     ),
-        #     keyword_search AS (
-        #         SELECT id, document, cmetadata,
-        #                RANK() OVER (ORDER BY ts_rank(fts_vector, plainto_tsquery('simple', :query)) DESC) AS rank,
-        #                -- Dùng ts_headline để bôi đậm các từ khóa tìm được bằng thẻ <b>
-        #                ts_headline('simple', document, plainto_tsquery('simple', :query), 'StartSel=<b>, StopSel=</b>, MaxWords=35, MinWords=15') AS match_keywords
-        #         FROM langchain_pg_embedding
-        #         WHERE fts_vector @@ plainto_tsquery('simple', :query)
-        #         LIMIT 20
-        #     )
-        #     SELECT
-        #         COALESCE(v.id, k.id) as id,
-        #         COALESCE(v.document, k.document) as document,
-        #         COALESCE(v.cmetadata, k.cmetadata) as cmetadata,
-        #         (COALESCE(1.0 / (60 + v.rank), 0.0) + COALESCE(1.0 / (60 + k.rank), 0.0)) as rrf_score,
-        #         v.rank as vector_rank,
-        #         k.rank as keyword_rank,
-        #         k.match_keywords as highlighted_text
-        #     FROM vector_search v
-        #     FULL OUTER JOIN keyword_search k ON v.id = k.id
-        #     ORDER BY rrf_score DESC
-        #     LIMIT :top_k
-        # """
+        # 2. Câu SQL thực hiện Hybrid Search (Vector + FTS)
         sql = """
             WITH vector_search AS (
                 SELECT id, document, cmetadata,
@@ -100,17 +71,17 @@ class PostgresHybridRetriever(BaseRetriever):
                 # 4. Đóng gói kết quả thành chuẩn Document của LangChain
                 for row in result:
                     metadata = row.cmetadata if row.cmetadata else {}
-                    
+
                     # Gắn RRF Score
                     metadata["hybrid_rrf_score"] = float(row.rrf_score)
-                    
+
                     # === ĐÃ BỔ SUNG: Gắn Rank và Highlight từ SQL row vào Python ===
                     metadata["vector_rank"] = row.vector_rank
                     metadata["keyword_rank"] = row.keyword_rank
-                    
+
                     if row.highlighted_text:
                         metadata["fts_highlight"] = row.highlighted_text
-                        
+
                     docs.append(Document(page_content=row.document, metadata=metadata))
             # --- LOG CHI TIẾT ĐỂ BẠN THẤY TỪ KHÓA ---
             print("\n🚀 [HYBRID SEARCH RUNNING]")
