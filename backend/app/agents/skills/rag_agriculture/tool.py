@@ -33,7 +33,7 @@ class AgricultureRAGSkill(BaseSkill):
 
         # Khởi tạo Hybrid Retriever CỰC KỲ GỌN NHẸ
         logging.info("Đang khởi tạo Postgres Hybrid Retriever (Vector + FTS)...")
-        self.retriever = self.vector_store_provider.get_hybrid_retriever(k=5)
+        self.retriever = self.vector_store_provider.get_hybrid_retriever(k=10)
 
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
@@ -112,6 +112,7 @@ class AgricultureRAGSkill(BaseSkill):
                     "file_name": metadata.get("file_name", "Unknown"),
                     "hierarchy": metadata.get("document_hierarchy", "Unknown"),
                     "content_snippet": doc.page_content[:200],  # First 200 chars
+                    "full_content": doc.page_content,
                     "chunk_id": metadata.get("chunk_id", ""),
                 }
                 sources.append(source_obj)
