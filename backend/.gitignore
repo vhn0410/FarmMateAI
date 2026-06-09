@@ -86,3 +86,6 @@ frontend/node_modules/
 .cache/
 *.bak
 *.tmp
+
+# Ignore the evaluations results directory
+scripts/temp/evaluations/results/
