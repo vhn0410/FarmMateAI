@@ -35,7 +35,7 @@ def get_chat_agent():
     """Khởi tạo và cấu hình AI Agent với các kỹ năng (Skills)."""
 
     # 1. Khởi tạo mô hình ngôn ngữ
-    llm = OpenAIClient(model="gpt-4o-mini", temperature=0.0, streaming = True).get_llm()
+    llm = OpenAIClient(model="gpt-4o-mini", temperature=0.0, streaming=True).get_llm()
 
     # 2. Khởi tạo Vector Store Provider
     vector_store_provider = PGVectorProvider()
