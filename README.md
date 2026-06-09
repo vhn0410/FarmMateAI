@@ -20,6 +20,8 @@ farm-mate-ai/
         ├── application/       # 2. USE CASES LAYER (Logic luồng công việc)
         │   ├── chat/
         │   │   └── use_case.py      # Điều phối: Lấy history -> Gọi Agent -> Lưu DB
+        │   │   └── response_enhancer.py      # Điều phối: Lấy history -> Gọi Agent -> Lưu DB
+
         │   └── documents/
         │       └── use_case.py      # Luồng xử lý update tài liệu
         │
@@ -30,6 +32,7 @@ farm-mate-ai/
         │   └── interfaces/          
         │       ├── llm.py           # Interface cho LLM
         │       ├── vector_db.py     # Interface cho VectorDB (Retriever)
+        │       ├── document_provider.py     
         │       └── repository.py    # Interface lưu trữ Database
         │
         ├── infrastructure/    # 4. IMPLEMENTATION LAYER (Code thực thi giao tiếp ra ngoài)
