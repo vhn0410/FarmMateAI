@@ -5,6 +5,7 @@ from app.domain.interfaces.vector_db import IVectorStoreProvider
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
+from app.infrastructure.vector_store.hybrid_retriever import PostgresHybridRetriever
 
 # Đọc từ biến môi trường (cấu hình trong file .env)
 DB_CONNECTION = settings.postgres_connection_string
@@ -61,3 +62,11 @@ class PGVectorProvider(IVectorStoreProvider):
         :return: PGVector instance
         """
         return self._vector_store
+
+    def get_hybrid_retriever(self, k: int = 5):
+        """Trả về Custom Hybrid Retriever sử dụng cả Vector và FTS."""
+        return PostgresHybridRetriever(
+            connection_string=DB_CONNECTION,
+            embeddings=self._get_embeddings_model(),
+            top_k=k,
+        )

@@ -1,7 +1,6 @@
+import logging
 from typing import Optional, Dict
 
-from langchain_community.retrievers.bm25 import BM25Retriever
-from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
@@ -32,26 +31,9 @@ class AgricultureRAGSkill(BaseSkill):
         self.vector_store_provider = vector_store_provider
         self.llm_provider = llm_provider
 
-        # 1. Lấy retriever từ provider
-        self.vector_retriever = self.vector_store_provider.as_retriever(
-            search_kwargs={"k": 5}
-        )
-
-        # 2. Cấu hình BM25 Retriever (Tìm theo Keyword)
-        all_docs = self._load_all_docs_from_db()
-        if all_docs:
-            print(f"Đã nạp {len(all_docs)} tài liệu cho BM25 Retriever.")
-            self.bm25_retriever = BM25Retriever.from_documents(all_docs)
-            self.bm25_retriever.k = 5
-
-            # 3. Kết hợp thành Hybrid Search
-            self.retriever = EnsembleRetriever(
-                retrievers=[self.bm25_retriever, self.vector_retriever],
-                weights=[0.5, 0.5],
-            )
-        else:
-            # Fallback nếu DB trống
-            self.retriever = self.vector_retriever
+        # Khởi tạo Hybrid Retriever CỰC KỲ GỌN NHẸ
+        logging.info("Đang khởi tạo Postgres Hybrid Retriever (Vector + FTS)...")
+        self.retriever = self.vector_store_provider.get_hybrid_retriever(k=5)
 
         # ==========================================
         # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
@@ -67,8 +49,9 @@ class AgricultureRAGSkill(BaseSkill):
             3. XỬ LÝ DỮ LIỆU MÂU THUẪN:
                - Nếu ngữ cảnh có nhiều giá trị khác nhau cho cùng một đối tượng ở các đoạn khác nhau, hãy ưu tiên trích xuất chính xác theo đúng cụm từ/câu chứa thông tin phân loại đó, hoặc nêu rõ cả hai nếu cần thiết. KHÔNG tự ý gộp số liệu.
             4. CHỈ TRÍCH XUẤT ĐỀ XUẤT CÓ SẴN: Nếu ngữ cảnh đề cập giải pháp/đề xuất, chỉ nêu đúng những gì được viết, không tự nghĩ thêm.
-            5. XỬ LÝ KHI THIẾU THÔNG TIN: Nếu không đủ thông tin để trả lời, hãy nói rõ: 'Ngữ cảnh không cung cấp đủ thông tin về vấn đề này.'
-            6. HÌNH THỨC: Câu trả lời cần súc tích, cấu trúc rõ ràng (nhận định → số liệu trích dẫn cụ thể → đề xuất nếu có).
+            5. XỬ LÝ CÂU HỎI MẬP MỜ/TỪ KHÓA: Nếu đầu vào của người dùng chỉ là một vài từ khóa ngắn (ví dụ: tên địa danh, tên cây trồng) mà không phải một câu hỏi rõ ràng, hãy tóm tắt những thông tin quan trọng nhất mà ngữ cảnh nhắc đến về các từ khóa đó.
+            6. XỬ LÝ KHI THIẾU THÔNG TIN: Nếu không đủ thông tin để trả lời, hãy nói rõ: 'Ngữ cảnh không cung cấp đủ thông tin về vấn đề này.'
+            7. HÌNH THỨC: Câu trả lời cần súc tích, cấu trúc rõ ràng (nhận định → số liệu trích dẫn cụ thể → đề xuất nếu có).
 
             Ngữ cảnh: {context}"""
 
