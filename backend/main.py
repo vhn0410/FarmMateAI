@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.api.v1.router import api_router
 from fastapi.middleware.cors import CORSMiddleware
+
 # Khởi tạo ứng dụng FastAPI
 app = FastAPI(
     title="FarmMate AI API",
@@ -10,7 +11,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Cho phép Frontend từ mọi port gọi tới
+    allow_origins=["*"],  # Cho phép Frontend từ mọi port gọi tới
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
