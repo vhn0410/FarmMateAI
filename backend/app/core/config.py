@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     drive_new_folder_id: str
     drive_processed_folder_id: str
     google_credentials_path: str = "credentials.json"
+    drive_ground_truth_folder_id: str
 
     # Application Settings
     environment: str = "development"

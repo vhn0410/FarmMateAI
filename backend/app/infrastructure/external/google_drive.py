@@ -1,7 +1,10 @@
 import os
+import json
+import io
 from pathlib import Path
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
 # from langchain_google_community import GoogleDriveLoader
 from langchain_community.document_loaders import GoogleDriveLoader
@@ -14,7 +17,7 @@ from app.core.config import settings
 
 DRIVE_NEW_FOLDER_ID = settings.drive_new_folder_id
 DRIVE_PROCESSED_FOLDER_ID = settings.drive_processed_folder_id
-
+DRIVE_GROUND_TRUTH_FOLDER_ID = settings.drive_ground_truth_folder_id
 # Resolve credentials.json từ backend root directory (tự động, không phụ thuộc cwd)
 _backend_dir = (
     Path(__file__).resolve().parents[3]
@@ -86,3 +89,43 @@ class GoogleDriveProvider(IDocumentProvider):
             print(f" Đã chuyển file {file_id} sang thư mục Processed.")
         except Exception as e:
             print(f" Lỗi khi chuyển file {file_id}: {str(e)}")
+
+    def get_file_id_by_name(self, file_name: str, folder_id: str) -> str:
+        """Tìm ID của một file cụ thể trong một thư mục cụ thể."""
+        try:
+            query = (
+                f"'{folder_id}' in parents and name = '{file_name}' and trashed = false"
+            )
+            results = (
+                self.service.files()
+                .list(q=query, fields="files(id, name)", pageSize=1)
+                .execute()
+            )
+
+            items = results.get("files", [])
+            if not items:
+                return None
+            return items[0]["id"]
+        except Exception as e:
+            print(f"❌ Lỗi khi tìm file {file_name} trên Drive: {str(e)}")
+            return None
+
+    def download_json(self, file_id: str):
+        """Tải file JSON từ Drive thẳng vào RAM (không lưu xuống ổ cứng)."""
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()  # Tạo bộ đệm trên RAM
+            downloader = MediaIoBaseDownload(fh, request)
+
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+
+            # Đọc byte từ RAM và ép kiểu thành JSON (List/Dict)
+            fh.seek(0)
+            json_data = json.loads(fh.read().decode("utf-8"))
+            return json_data
+
+        except Exception as e:
+            print(f"❌ Lỗi khi tải và đọc file JSON (ID: {file_id}): {str(e)}")
+            return None

@@ -7,7 +7,12 @@ farm-mate-ai/
     ├── requirements.txt       # Quản lý thư viện (hoặc pyproject.toml)
     ├── main.py                # Entrypoint của FastAPI (Nằm GỌN trong backend)
     ├── scripts/               # Các task chạy ngầm / offline
-    │   └── cron_ingest_drive.py # Script cronjob đồng bộ Drive vào PGVector
+    │   └── cron_ingest_drive.py 
+    │   └── cron_evaluate_rag.py
+    ├── evaluations/ 
+    │   └── dataset
+    │   └── 01_run_experiments.py
+    │   └── 02_ragas_evaluator.py
     │
     └── app/
         ├── api/               # 1. PRESENTATION LAYER (FastAPI Controllers)
