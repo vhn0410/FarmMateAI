@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     drive_processed_folder_id: str
     google_credentials_path: str = "credentials.json"
     drive_ground_truth_folder_id: str
-
+    openweathermap_base_url: str
+    openweathermap_api_key: str
     # Application Settings
     environment: str = "development"
     debug: bool = False
