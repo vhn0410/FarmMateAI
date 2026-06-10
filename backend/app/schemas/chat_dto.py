@@ -3,7 +3,9 @@ from typing import List, Optional
 
 
 class ChatRequest(BaseModel):
-    query: str = Field(..., example="Trồng dừa ở vùng đất mặn cần bón phân gì?")
+    query: str = Field(
+        ..., json_schema_extra={"example": "Trồng dừa ở vùng đất mặn cần bón phân gì?"}
+    )
     session_id: str = Field(
         default="default_session", description="Dùng để lưu lịch sử chat sau này"
     )
@@ -12,9 +14,16 @@ class ChatRequest(BaseModel):
 class SourceDocument(BaseModel):
     """Mô tả tài liệu nguồn được trích xuất từ Vector DB"""
 
-    file_name: str = Field(..., example="Bao_cao_nong_nghiep.md")
-    hierarchy: str = Field(..., example="1. MỞ ĐẦU > Mô hình tôm")
-    content_snippet: str = Field(..., description="Đoạn văn bản trích dẫn")
+    file_name: str = Field(..., json_schema_extra={"example": "Bao_cao_nong_nghiep.md"})
+    hierarchy: str = Field(
+        ..., json_schema_extra={"example": "1. MỞ ĐẦU > Mô hình tôm"}
+    )
+    content_snippet: str = Field(
+        ...,
+        json_schema_extra={
+            "example": "Nông nghiệp bền vững là xu hướng phát triển mới trong thời đại công nghệ 4.0."
+        },
+    )
 
 
 class TokenUsage(BaseModel):
@@ -29,11 +38,14 @@ class ResponseMetadata(BaseModel):
     """Các dữ liệu siêu dữ liệu dùng để giám sát hệ thống"""
 
     processing_time_ms: int = Field(
-        ..., example=1450, description="Thời gian xử lý tính bằng mili-giây"
+        ...,
+        json_schema_extra={"example": 1450},
+        description="Thời gian xử lý tính bằng mili-giây",
     )
     tokens_used: Optional[TokenUsage] = None
     agent_actions: List[str] = Field(
-        default_factory=list, example=["Tu_van_ky_thuat_nong_nghiep"]
+        default_factory=list,
+        json_schema_extra={"example": ["Tu_van_ky_thuat_nong_nghiep"]},
     )
 
 
@@ -49,6 +61,6 @@ class ChatData(BaseModel):
 class ChatResponse(BaseModel):
     """Cấu trúc bao ngoài cùng của API Response"""
 
-    status: str = Field(default="success", example="success")
+    status: str = Field(default="success", json_schema_extra={"example": "success"})
     data: ChatData
     metadata: Optional[ResponseMetadata] = None
