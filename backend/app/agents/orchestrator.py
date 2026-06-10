@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 
 from app.agents.skills.rag_agriculture.tool import AgricultureRAGSkill
+from app.agents.skills.weather.tool import WeatherSkill
 from app.agents.skills.base import SkillResult
 from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 from app.infrastructure.llm.openai_client import OpenAIClient
@@ -22,6 +23,7 @@ def get_chat_agent():
         vector_store_provider=vector_store_provider,
         llm_provider=OpenAIClient(model="gpt-4o-mini", temperature=0.0),
     )
+    weather_skill = WeatherSkill()
 
     @tool(rag_skill.name)
     def agriculture_tool(query: str) -> str:
@@ -72,10 +74,16 @@ def get_chat_agent():
     # ==========================================
     # TOOL 4: THỜI TIẾT (Giả lập)
     # ==========================================
-    @tool("Lay_du_lieu_thoi_tiet")
+    @tool(weather_skill.name)
     def weather_tool(location: str) -> str:
         """Sử dụng công cụ này để lấy thông tin thời tiết (nhiệt độ, mưa, nắng) hiện tại ở một khu vực cụ thể."""
-        return f"Thời tiết tại {location}: Nhiệt độ 34°C, độ ẩm 65%, trời nắng gắt, không có mưa."
+        result: SkillResult = weather_skill.run(location) # Truyền location vào làm query
+        try:
+            state = agent_shared_state.get()
+            state["skill_result"] = result
+        except LookupError:
+            pass
+        return result.answer
 
     # Gộp tất cả tools lại
     tools = [agriculture_tool, iot_sensor_tool, farming_process_tool, weather_tool]
@@ -90,7 +98,9 @@ def get_chat_agent():
                 3. Quy trình canh tác chuẩn.
                 4. Hệ thống tài liệu chuyên gia (RAG).
                 
-                LƯU Ý QUAN TRỌNG: Hãy chủ động suy luận. Nếu người dùng hỏi tình trạng cây, hãy tự động gọi công cụ Thời tiết và Cảm biến để kiểm tra số liệu, sau đó kết hợp với RAG và Quy trình canh tác để đưa ra chẩn đoán và giải pháp. Trả lời súc tích và có tính chuyên môn cao.""",
+                LƯU Ý QUAN TRỌNG: 
+                - Hãy chủ động suy luận. Nếu người dùng hỏi tình trạng cây, hãy tự động gọi công cụ Thời tiết và Cảm biến để kiểm tra số liệu, sau đó kết hợp với RAG và Quy trình canh tác để đưa ra chẩn đoán và giải pháp. Trả lời súc tích và có tính chuyên môn cao.
+                - Khi gọi công cụ thời tiết, nếu địa danh là một Huyện/Xã nhỏ (như Cù Lao Dung) mà công cụ báo lỗi không tìm thấy, hãy tự động suy luận xem Huyện/Xã đó thuộc Tỉnh/Thành phố nào (VD: Sóc Trăng) và gọi lại công cụ thời tiết bằng tên Tỉnh/Thành phố đó để lấy dữ liệu chung.""",
             ),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
