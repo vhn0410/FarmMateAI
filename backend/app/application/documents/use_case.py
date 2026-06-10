@@ -68,7 +68,16 @@ class DocumentUseCase:
                 file_id_for_moving = source_file.split("/d/")[1].split("/")[0]
             processed_file_ids.add(file_id_for_moving)
 
-            file_name = os.path.basename(source_file)
+            file_name = doc.metadata.get("title") or doc.metadata.get("name")
+            
+            # Nếu Loader không trả về tên, ta bắt buộc phải dùng Fallback
+            if not file_name:
+                if "drive.google.com" in source_file:
+                    # Tránh hiển thị chữ "view" vô nghĩa, ta dùng ID rút gọn làm tên tạm
+                    file_name = f"Tài_liệu_Drive_{file_id_for_moving[:6]}" 
+                else:
+                    # Nếu là đường dẫn local (C:/docs/file.pdf), basename mới hoạt động đúng
+                    file_name = os.path.basename(source_file)
 
             # Cắt Lần 1: Theo cấu trúc Markdown
             structure_chunks = markdown_splitter.split_text(doc.page_content)
@@ -78,6 +87,7 @@ class DocumentUseCase:
 
             for i, chunk in enumerate(fallback_chunks):
                 chunk.metadata["source"] = source_file
+                chunk.metadata["file_id"] = file_id_for_moving
                 chunk.metadata["file_name"] = file_name
                 chunk.metadata["chunk_id"] = str(uuid.uuid4())
                 chunk.metadata["chunk_index"] = i
