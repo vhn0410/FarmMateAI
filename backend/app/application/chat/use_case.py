@@ -2,11 +2,7 @@ import time
 import json
 from app.schemas.chat_dto import ChatRequest, ChatResponse, ChatData, ResponseMetadata
 from typing import AsyncGenerator
-from app.agents.orchestrator import (
-    get_chat_agent,
-    get_last_skill_result,
-    clear_skill_cache,
-)
+from app.agents.orchestrator import get_chat_agent, agent_shared_state
 from app.application.chat.response_enhancer import ResponseEnhancer
 from app.domain.interfaces.llm_provider import ILLMProvider
 
@@ -59,29 +55,51 @@ class ChatUseCase:
             )
 
     def _invoke_agent(self, query: str):
-        """Reset cache và gọi Agent xử lý câu hỏi."""
-        clear_skill_cache()
+        """Reset cache và gọi Agent xử lý câu hỏi (Luồng đồng bộ)."""
+
+        # 1. TẠO CHIẾC HỘP RIÊNG CHO REQUEST NÀY
+        my_state = {}
+        agent_shared_state.set(my_state)
+
+        # 2. Gọi Agent chạy
         result = self.agent.invoke({"input": query, "chat_history": []})
         bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
-        skill_result = get_last_skill_result()
+
+        # 3. LẤY KẾT QUẢ TỪ CHIẾC HỘP SAU KHI TOOL CHẠY XONG
+        skill_result = my_state.get("skill_result")
+
+        # (Đã xóa bỏ hoàn toàn vòng lặp tìm intermediate_steps cũ rườm rà)
 
         return bot_answer, skill_result
 
     def _extract_metadata(self, bot_answer: str, skill_result: any):
         """Trích xuất và mapping dữ liệu từ kết quả của Skill."""
 
+        # Nếu skill_result bị rỗng, lập tức trả về mảng rỗng
         if not skill_result:
             return [], [], None
 
-        if skill_result:
-            agent_actions = skill_result.agent_actions or []
-            skill_tokens = skill_result.tokens_used
+        agent_actions = getattr(skill_result, "agent_actions", [])
+        skill_tokens = getattr(skill_result, "tokens_used", None)
 
+        # Lấy sources gốc từ skill_result.metadata
+        raw_sources = (
+            skill_result.metadata.get("sources", []) if skill_result.metadata else []
+        )
+
+        # CHÚ Ý: Nếu hàm extract_sources của response_enhancer bị lỗi,
+        # hãy thử trả về trực tiếp raw_sources ở đây để debug.
+        try:
             sources = self.response_enhancer.extract_sources(
                 skill_result_metadata=skill_result.metadata,
                 answer=bot_answer,
                 skill_name=skill_result.skill_name,
             )
+        except Exception as e:
+            print(f"Lỗi extract sources: {e}")
+            # Nếu ResponseEnhancer lỗi, lấy luôn danh sách sources thô
+            sources = raw_sources
+
         return sources, agent_actions, skill_tokens
 
     async def _generate_suggestions(self, answer: str, query: str, sources: list):
@@ -151,58 +169,50 @@ class ChatUseCase:
         )
 
     async def stream_chat(self, request: ChatRequest) -> AsyncGenerator[str, None]:
-        """
-        Hàm Generator: Bơm liên tục (yield) các mảnh dữ liệu (chunks) về cho Client bằng astream_events.
-        """
         start_time = time.time()
         bot_answer = ""
+        is_inside_tool = False
 
-        # Reset cache từ session trước
-        clear_skill_cache()
+        # =======================================================
+        # KHỞI TẠO KHO CHỨA (DICTIONARY) CHO RIÊNG REQUEST NÀY
+        # =======================================================
+        my_state = {}
+        agent_shared_state.set(my_state)
 
         try:
-            # 1. Gửi tín hiệu khởi tạo đầu tiên cho Frontend hiển thị UI Loading
             yield f"data: {json.dumps({'event': 'status', 'message': 'Đang phân tích câu hỏi...'})}\n\n"
 
-            # 2. Mở luồng lắng nghe sự kiện từ LangChain Agent
             async for event in self.agent.astream_events(
                 {"input": request.query, "chat_history": []}, version="v2"
             ):
                 kind = event["event"]
 
-                # [Sự kiện A]: Agent bắt đầu gọi công cụ RAG
                 if kind == "on_tool_start":
+                    is_inside_tool = True
                     tool_name = event.get("name", "công cụ")
-                    yield f"data: {json.dumps({'event': 'status', 'message': f'Đang tra cứu tài liệu ({tool_name})...'})}\n\n"
+                    yield f"data: {json.dumps({'event': 'status', 'message': f'Đang tra cứu ({tool_name})...'})}\n\n"
 
-                # [Sự kiện B]: Agent nhận được kết quả từ công cụ RAG
                 elif kind == "on_tool_end":
-                    # LƯU Ý: Không gọi get_last_skill_result() ở đây nữa để tránh race condition
-                    yield f"data: {json.dumps({'event': 'status', 'message': 'Đã đọc tài liệu, đang tổng hợp câu trả lời...'})}\n\n"
+                    is_inside_tool = False
+                    yield f"data: {json.dumps({'event': 'status', 'message': 'Đã thu thập dữ liệu, đang tổng hợp câu trả lời...'})}\n\n"
 
-                # [Sự kiện C]: LLM bắt đầu nhả từng chữ (Streaming Token)
                 elif kind == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"]
-                    if chunk.content and isinstance(chunk.content, str):
-                        token = chunk.content
-                        bot_answer += token  # Lưu lại để chấm điểm/sinh câu hỏi sau
+                    if not is_inside_tool:
+                        chunk = event["data"]["chunk"]
+                        if chunk.content and isinstance(chunk.content, str):
+                            token = chunk.content
+                            bot_answer += token
+                            yield f"data: {json.dumps({'event': 'token', 'text': token})}\n\n"
 
-                        # Bơm ngay lập tức token này về Frontend
-                        yield f"data: {json.dumps({'event': 'token', 'text': token})}\n\n"
+            # =======================================================
+            # MỞ KHO CHỨA LẤY KẾT QUẢ SAU KHI CHẠY XONG
+            # =======================================================
+            skill_result = my_state.get("skill_result")
 
-            # =========================================================
-            # 3. KẾT THÚC STREAM -> XỬ LÝ HẬU KỲ (POST-PROCESSING)
-            # =========================================================
-
-            # Lấy Cache ở đây là an toàn nhất (sau khi mọi thứ đã chạy xong)
-            skill_result = get_last_skill_result()
-
-            # ĐÃ SỬA LỖI: Gọi đúng thứ tự tham số (bot_answer trước, skill_result sau)
             sources, agent_actions, skill_tokens = self._extract_metadata(
                 bot_answer=bot_answer, skill_result=skill_result
             )
 
-            # Sinh câu hỏi gợi ý
             (
                 suggested_questions,
                 suggested_questions_tokens,
@@ -210,13 +220,11 @@ class ChatUseCase:
                 answer=bot_answer, query=request.query, sources=sources
             )
 
-            # Gom token
             tokens_used = self.response_enhancer.aggregate_tokens(
                 skill_tokens=skill_tokens,
                 suggested_questions_tokens=suggested_questions_tokens,
             )
 
-            # 4. GÓI TIN CHỐT HẠ (DONE): Gửi toàn bộ metadata
             final_metadata = {
                 "event": "done",
                 "session_id": request.session_id,
