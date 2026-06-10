@@ -87,44 +87,20 @@ class AgricultureRAGSkill(BaseSkill):
     def run(self, query: str, **kwargs) -> SkillResult:
         """
         Thực thi RAG Chain và capture metadata (sources, tokens, actions).
-        Sử dụng get_openai_callback để đo chính xác token tiêu thụ.
+        Đã FIX lỗi Double Fetch: Chỉ gọi qa_chain 1 lần duy nhất.
         """
         agent_actions = []
         tokens_used: Optional[Dict[str, int]] = None
-        retrieved_docs = []
         sources = []
 
         try:
-            # ===== STEP 1: Retrieve Documents =====
-            agent_actions.append(
-                f"Retrieving relevant documents for query: '{query[:50]}...'"
-            )
-            retrieved_docs = self.retriever.invoke(query)
-            agent_actions.append(
-                f"Retrieved {len(retrieved_docs)} documents from vector store"
-            )
+            agent_actions.append(f"Invoking QA Chain for query: '{query[:50]}...'")
 
-            # ===== STEP 2: Extract Source Metadata =====
-            for idx, doc in enumerate(retrieved_docs[:5]):  # Top 5 docs
-                metadata = doc.metadata or {}
-                source_obj = {
-                    "doc_index": idx,
-                    "file_name": metadata.get("file_name", "Unknown"),
-                    "hierarchy": metadata.get("document_hierarchy", "Unknown"),
-                    "content_snippet": doc.page_content[:200],  # First 200 chars
-                    "full_content": doc.page_content,
-                    "chunk_id": metadata.get("chunk_id", ""),
-                }
-                sources.append(source_obj)
-
-            # ===== STEP 3 & 4: Invoke QA Chain VÀ Đếm Token =====
-            agent_actions.append("Generating answer using LLM with RAG context")
-
-            # Sử dụng Context Manager của Langchain để bắt trọn thông số Token
+            # ===== STEP 1: GỌI QA CHAIN NGAY LẬP TỨC (Chỉ 1 lần gọi DB) =====
             with get_openai_callback() as cb:
+                # Lệnh này sẽ tự động search DB và sinh câu trả lời
                 result = self.qa_chain.invoke({"input": query})
 
-                # Sau khi thực thi xong chain, biến cb sẽ chứa đầy đủ thông tin usage
                 if cb.total_tokens > 0:
                     tokens_used = {
                         "prompt_tokens": cb.prompt_tokens,
@@ -135,23 +111,39 @@ class AgricultureRAGSkill(BaseSkill):
                         f"Consumed {cb.total_tokens} tokens from LLM "
                         f"(prompt: {cb.prompt_tokens}, completion: {cb.completion_tokens})"
                     )
-                else:
-                    agent_actions.append(
-                        "Token tracking: Không ghi nhận được token nào tiêu thụ."
-                    )
 
-            # ===== STEP 5: Get Final Answer =====
+            # ===== STEP 2: LẤY CÂU TRẢ LỜI VÀ TÀI LIỆU TỪ RESULT =====
             final_answer = result.get("answer", "Không có câu trả lời.")
-            agent_actions.append("Answer generation complete")
+            # create_retrieval_chain luôn trả về tài liệu tìm được trong key "context"
+            retrieved_docs = result.get("context", [])
 
-            # ===== RETURN SkillResult =====
+            agent_actions.append(
+                f"Retrieved {len(retrieved_docs)} documents from vector store internally."
+            )
+
+            # ===== STEP 3: TRÍCH XUẤT METADATA =====
+            for idx, doc in enumerate(retrieved_docs[:5]):  # Top 5 docs
+                metadata = doc.metadata or {}
+                source_obj = {
+                    "doc_index": idx,
+                    "file_name": metadata.get("file_name", "Unknown"),
+                    "hierarchy": metadata.get("document_hierarchy", "Unknown"),
+                    "content_snippet": doc.page_content[:200],  # Dành cho UI
+                    "full_content": doc.page_content,  # Dành cho Evaluation
+                    "chunk_id": metadata.get("chunk_id", ""),
+                }
+                sources.append(source_obj)
+
+            agent_actions.append("Answer generation and source extraction complete")
+
+            # ===== STEP 4: RETURN SkillResult =====
             return SkillResult(
                 answer=final_answer,
                 skill_name=self.name,
                 metadata={
                     "sources": sources,
                     "retrieved_docs_count": len(retrieved_docs),
-                    "top_sources": sources[:3],  # Top 3 for quick access
+                    "top_sources": sources[:3],
                 },
                 tokens_used=tokens_used,
                 agent_actions=agent_actions,
@@ -167,7 +159,7 @@ class AgricultureRAGSkill(BaseSkill):
                 answer=error_msg,
                 skill_name=self.name,
                 metadata={
-                    "sources": sources,
+                    "sources": [],
                     "retrieved_docs_count": 0,
                     "top_sources": [],
                 },

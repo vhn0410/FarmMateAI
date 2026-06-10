@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-import time
 from datetime import datetime
 import pandas as pd
 from dotenv import load_dotenv
@@ -15,31 +13,32 @@ from unittest.mock import MagicMock
 sys.modules["langchain_community.chat_models.vertexai"] = MagicMock()
 sys.modules["langchain_community.llms.vertexai"] = MagicMock()
 
-from datasets import Dataset
-from ragas import evaluate
-from ragas.metrics import (
-    faithfulness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-)
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from ragas.llms import LangchainLLMWrapper
-from ragas.embeddings import LangchainEmbeddingsWrapper
-
-# Thêm root path để import từ thư mục app
-backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(backend_dir)
-
-from app.infrastructure.llm.openai_client import OpenAIClient
-from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
-from app.infrastructure.external.google_drive import GoogleDriveProvider
-from app.agents.skills.rag_agriculture.tool import AgricultureRAGSkill
 
 load_dotenv()
 
 
 def run_cron_evaluation():
+    from datasets import Dataset
+    from ragas import evaluate
+    from ragas.metrics import (
+        faithfulness,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+    )
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+    from ragas.llms import LangchainLLMWrapper
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+
+    # Thêm root path để import từ thư mục app
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.append(backend_dir)
+
+    from app.infrastructure.llm.openai_client import OpenAIClient
+    from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
+    from app.infrastructure.external.google_drive import GoogleDriveProvider
+    from app.agents.skills.rag_agriculture.tool import AgricultureRAGSkill
+
     print("🚀 BẮT ĐẦU CRONJOB ĐÁNH GIÁ RAGAS...")
 
     # 1. Khởi tạo các thành phần
