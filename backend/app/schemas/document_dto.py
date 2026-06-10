@@ -8,11 +8,13 @@ class SyncResponse(BaseModel):
 
     status: str = Field(
         ...,
-        example="success",
+        json_schema_extra={"example": "success"},
         description="Trạng thái của tiến trình (ví dụ: success, pending, error)",
     )
     message: str = Field(
         ...,
-        example="Hệ thống đang tiến hành xử lý tài liệu chạy ngầm.",
+        json_schema_extra={
+            "example": "Hệ thống đang tiến hành xử lý tài liệu chạy ngầm."
+        },
         description="Thông báo chi tiết gửi đến người dùng/frontend",
     )

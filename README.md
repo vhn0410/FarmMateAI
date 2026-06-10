@@ -14,6 +14,14 @@ farm-mate-ai/
     │   └── 01_run_experiments.py
     │   └── 02_ragas_evaluator.py
     │
+    ├── tests/                # THƯ MỤC TEST MỚI
+    ├── __init__.py
+    ├── conftest.py       # Nơi chứa các cấu hình dùng chung (Fixtures)
+    ├── unit/             # Test từng hàm nhỏ (Rất nhanh)
+    │   ├── test_vector_db.py
+    │   └── test_weather_skill.py
+    └── integration/      # Test API Endpoints (Gắn kết các thành phần)
+    │   └── test_chat_api.py
     └── app/
         ├── api/               # 1. PRESENTATION LAYER (FastAPI Controllers)
         │   └── v1/
