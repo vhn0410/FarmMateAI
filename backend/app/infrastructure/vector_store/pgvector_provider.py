@@ -6,6 +6,12 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
 from app.infrastructure.vector_store.hybrid_retriever import PostgresHybridRetriever
+from sqlalchemy import create_engine
+from langchain_classic.retrievers.parent_document_retriever import (
+    ParentDocumentRetriever,
+)
+from app.infrastructure.vector_store.pg_docstore import PostgresDocStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Đọc từ biến môi trường (cấu hình trong file .env)
 DB_CONNECTION = settings.postgres_connection_string
@@ -30,6 +36,9 @@ class PGVectorProvider(IVectorStoreProvider):
             connection=DB_CONNECTION,
             use_jsonb=True,  # Tối ưu lưu trữ metadata (chunk_id, hierarchy...)
         )
+        # Khởi tạo DB engine cho DocStore
+        self._engine = create_engine(DB_CONNECTION)
+        self._docstore = PostgresDocStore(self._engine)
 
     def _get_embeddings_model(self):
         return OpenAIEmbeddings(
@@ -69,4 +78,26 @@ class PGVectorProvider(IVectorStoreProvider):
             connection_string=DB_CONNECTION,
             embeddings=self._get_embeddings_model(),
             top_k=k,
+        )
+
+    # ==========================================
+    # PHẦN MỚI: CUNG CẤP PARENT DOCUMENT RETRIEVER
+    # ==========================================
+    def get_parent_document_retriever(self) -> ParentDocumentRetriever:
+        """
+        Trả về PDR object. Dùng chung cho cả Ingestion (Lưu DB) và Retrieval (Chat).
+        """
+        # Child splitter dùng để băm nhỏ dữ liệu lưu vào VectorDB
+        child_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=400,
+            chunk_overlap=50,
+            separators=["\n\n", "\n", r"(?<=\. )", " ", ""],
+        )
+
+        return ParentDocumentRetriever(
+            vectorstore=self._vector_store,
+            docstore=self._docstore,
+            child_splitter=child_splitter,
+            # parent_splitter=None vì ta đã cắt Parent bằng Markdown từ bên ngoài
+            parent_splitter=None,
         )
