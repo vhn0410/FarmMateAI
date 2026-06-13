@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import documents
 from app.api.v1.endpoints import chat
+from app.api.v1.endpoints import auth
 
 # Khởi tạo router tổng cho phiên bản 1 (v1)
 api_router = APIRouter()
@@ -13,3 +14,4 @@ api_router.include_router(
 
 # Gắn ống nước cho Chat (Tạm thời đóng)
 api_router.include_router(chat.router, prefix="/chat", tags=["Chatbot"])
+api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
