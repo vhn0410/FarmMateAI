@@ -6,13 +6,16 @@ from app.agents.orchestrator import get_chat_agent, agent_shared_state
 from app.application.chat.response_enhancer import ResponseEnhancer
 from app.domain.interfaces.llm_provider import ILLMProvider
 from app.agents.mocks.mock_system import MOCK_SYSTEM_DB
-
-
+import uuid
+from app.infrastructure.db.models import MessageModel, ConversationModel
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
 class ChatUseCase:
-    def __init__(self, llm_provider: ILLMProvider):
+    def __init__(self, llm_provider: ILLMProvider, db: Session):
         self.agent = get_chat_agent()
         self.response_enhancer = ResponseEnhancer()
         self.llm_provider = llm_provider
+        self.db = db
 
     async def process_chat(self, request: ChatRequest) -> ChatResponse:
         """Xử lý luồng chat chính với đầy đủ metadata."""
@@ -63,7 +66,9 @@ class ChatUseCase:
         agent_shared_state.set(my_state)
 
         # 2. Gọi Agent chạy
-        result = self.agent.invoke({"input": query, "chat_history": [], "user_context": []})
+        result = self.agent.invoke(
+            {"input": query, "chat_history": [], "user_context": []}
+        )
         bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
 
         # 3. LẤY KẾT QUẢ TỪ CHIẾC HỘP SAU KHI TOOL CHẠY XONG
@@ -169,23 +174,64 @@ class ChatUseCase:
             ),
         )
 
-    async def stream_chat(self, request: ChatRequest) -> AsyncGenerator[str, None]:
+    async def stream_chat(
+        self, request: ChatRequest, current_user
+    ) -> AsyncGenerator[str, None]:
         start_time = time.time()
         bot_answer = ""
         is_inside_tool = False
 
-        # =======================================================
-        # KHỞI TẠO KHO CHỨA (DICTIONARY) CHO RIÊNG REQUEST NÀY
-        # =======================================================
         my_state = {}
         agent_shared_state.set(my_state)
 
         try:
-            # Giả sử bạn lấy được thông tin này từ JWT Token hoặc Session
-            current_user_id = "user_vu_001"
+            # =======================================================
+            # PHASE 1: XỬ LÝ CONVERSATION (HỘI THOẠI)
+            # =======================================================
+            conversation_id = request.session_id
+
+            if not conversation_id:
+                # TRƯỜNG HỢP 1: Bắt đầu chat mới -> Backend TỰ SINH ID
+                new_conv = ConversationModel(
+                    id=str(uuid.uuid4()),
+                    user_id=current_user.id,
+                    title=request.query[:50] # Lấy 50 ký tự đầu làm tiêu đề tạm
+                )
+                self.db.add(new_conv)
+                self.db.commit()
+                conversation_id = new_conv.id
+            else:
+                # TRƯỜNG HỢP 2: FE gửi session_id lên -> Bắt buộc phải TỒN TẠI và ĐÚNG CHỦ SỞ HỮU
+                conv = self.db.query(ConversationModel).filter(
+                    ConversationModel.id == conversation_id,
+                    ConversationModel.user_id == current_user.id # Cực kỳ quan trọng: Ngăn lỗi IDOR
+                ).first()
+                
+                if not conv:
+                    # Nếu FE gửi ID bậy bạ, hoặc ID của người khác -> Quăng lỗi ngay!
+                    raise HTTPException(
+                        status_code=404, 
+                        detail="Session ID không hợp lệ hoặc bạn không có quyền truy cập hội thoại này."
+                    )
+
+            # =======================================================
+            # PHASE 2: LƯU CÂU HỎI CỦA USER
+            # =======================================================
+            user_msg = MessageModel(
+                conversation_id=conversation_id,
+                sender_type="user",
+                content=request.query,
+            )
+            self.db.add(user_msg)
+            self.db.commit()
+
+            # =======================================================
+            # PHASE 3: THỰC THI LUỒNG AGENT LANGGRAPH
+            # =======================================================
+            # Sửa chỗ hardcode lúc trước thành ID thật của người đang đăng nhập
+            current_user_id = current_user.id
             user_stations = MOCK_SYSTEM_DB.get(current_user_id, [])
 
-            # Biến list thành một câu văn dễ hiểu cho LLM
             user_context_text = (
                 f"Người dùng này sở hữu {len(user_stations)} trạm quan trắc:\n"
             )
@@ -197,7 +243,7 @@ class ChatUseCase:
             async for event in self.agent.astream_events(
                 {
                     "input": request.query,
-                    "chat_history": [],
+                    "chat_history": [],  # Sau này bạn có thể query DB để nhét lịch sử chat vào đây
                     "user_context": user_context_text,
                 },
                 version="v2",
@@ -222,21 +268,25 @@ class ChatUseCase:
                             yield f"data: {json.dumps({'event': 'token', 'text': token})}\n\n"
 
             # =======================================================
-            # MỞ KHO CHỨA LẤY KẾT QUẢ SAU KHI CHẠY XONG
+            # PHASE 4: LƯU CÂU TRẢ LỜI CỦA AI VÀ TRẢ VỀ METADATA
             # =======================================================
+            ai_msg = MessageModel(
+                conversation_id=conversation_id, sender_type="ai", content=bot_answer
+            )
+            self.db.add(ai_msg)
+            self.db.commit()
+
             skill_result = my_state.get("skill_result")
 
             sources, agent_actions, skill_tokens = self._extract_metadata(
                 bot_answer=bot_answer, skill_result=skill_result
             )
-
             (
                 suggested_questions,
                 suggested_questions_tokens,
             ) = await self._generate_suggestions(
                 answer=bot_answer, query=request.query, sources=sources
             )
-
             tokens_used = self.response_enhancer.aggregate_tokens(
                 skill_tokens=skill_tokens,
                 suggested_questions_tokens=suggested_questions_tokens,
@@ -244,7 +294,7 @@ class ChatUseCase:
 
             final_metadata = {
                 "event": "done",
-                "session_id": request.session_id,
+                "session_id": conversation_id,  # Đảm bảo trả về ID mới nhất
                 "sources": [s.model_dump() for s in sources] if sources else [],
                 "suggested_questions": suggested_questions,
                 "metadata": {

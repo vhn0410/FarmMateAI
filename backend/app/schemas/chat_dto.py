@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
+from datetime import datetime
 
 
 class ChatRequest(BaseModel):
@@ -7,7 +8,7 @@ class ChatRequest(BaseModel):
         ..., json_schema_extra={"example": "Trồng dừa ở vùng đất mặn cần bón phân gì?"}
     )
     session_id: str = Field(
-        default="default_session", description="Dùng để lưu lịch sử chat sau này"
+        default=None, description="Dùng để lưu lịch sử chat sau này"
     )
 
 
@@ -64,3 +65,41 @@ class ChatResponse(BaseModel):
     status: str = Field(default="success", json_schema_extra={"example": "success"})
     data: ChatData
     metadata: Optional[ResponseMetadata] = None
+
+
+class MessageItem(BaseModel):
+    id: str
+    sender_type: str  # 'user' hoặc 'ai'
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )  # Ép kiểu từ SQLAlchemy Model sang JSON
+
+
+class ConversationItem(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConversationListResponse(BaseModel):
+    status: str = "success"
+    data: List[ConversationItem]
+
+
+class ConversationDetailResponse(BaseModel):
+    status: str = "success"
+    conversation_id: str
+    messages: List[MessageItem]
+
+class ConversationCreateRequest(BaseModel):
+    # FE có thể gửi title lên, hoặc bỏ trống thì lấy mặc định
+    title: str = Field(default="Hội thoại mới")
+
+class ConversationCreateResponse(BaseModel):
+    status: str = "success"
+    data: ConversationItem  # Tái sử dụng class ConversationItem vừa tạo ở bước trước
