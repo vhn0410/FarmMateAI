@@ -10,9 +10,13 @@ class UserModel(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
+    
+    email = Column(String, nullable=True)
+    full_name = Column(String, nullable=True)
+    auth_provider = Column(String, default="postgres") # Lưu vết: 'postgres' hoặc 'keycloak'
+    
     # Quan hệ 1-N sang Conversations
     conversations = relationship("ConversationModel", back_populates="owner", cascade="all, delete-orphan")
 
