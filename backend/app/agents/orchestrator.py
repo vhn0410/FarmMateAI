@@ -10,6 +10,7 @@ from app.agents.skills.weather.tool import WeatherSkill
 from app.agents.skills.base import SkillResult
 from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 from app.infrastructure.llm.openai_client import OpenAIClient
+from app.agents.mocks.mock_system import MOCK_SYSTEM_DB
 
 
 agent_shared_state = contextvars.ContextVar("agent_shared_state")
@@ -27,7 +28,23 @@ def get_chat_agent():
 
     @tool(rag_skill.name)
     def agriculture_tool(query: str) -> str:
-        """Sử dụng công cụ này để tra cứu kiến thức nông nghiệp, tài liệu, số liệu môi trường đất và quy trình canh tác."""
+        """
+        CÔNG CỤ TRA CỨU SỔ TAY CHUYÊN GIA NÔNG NGHIỆP.
+        !!! CẢNH BÁO ĐỎ CHO THAM SỐ 'query' !!!
+
+        1. TUYỆT ĐỐI KHÔNG BAO GIỜ truyền số liệu thô hoặc kết quả cảm biến vào query (KHÔNG dùng các từ như: "pH 4.5", "N 120", "P 45", "ẩm 40%"). Nếu vi phạm, hệ thống sẽ lỗi.
+
+        2. BẮT BUỘC PHẢI DỊCH số liệu thành TỪ KHÓA CHUYÊN MÔN trước khi tìm kiếm:
+
+           - Nếu pH < 5 -> Phải dịch thành "đất chua", "đất phèn", "cải tạo đất".
+
+           - Nếu N, P, K thấp -> Phải dịch thành "thiếu dinh dưỡng", "bón lót", "bón thúc".
+
+        3. Ví dụ truy vấn ĐÚNG: "Cách bón phân thúc đẻ nhánh cho lúa trên đất chua phèn"
+
+        4. Ví dụ truy vấn SAI: "Cách bón phân lúa pH 4.5 N 120"
+
+        """
         result: SkillResult = rag_skill.run(query)
 
         # Lấy kho chứa của User hiện tại ra và bỏ kết quả vào
@@ -39,37 +56,23 @@ def get_chat_agent():
 
         return result.answer
 
-    # ==========================================
-    # TOOL 2: CẢM BIẾN IOT (Giả lập)
-    # ==========================================
+    # Cập nhật Tool 2: Lấy IoT theo Trạm
     @tool("Lay_du_lieu_cam_bien_IoT")
-    def iot_sensor_tool(farm_id: str = "mac_dinh") -> str:
-        """Sử dụng công cụ này ĐỂ ĐỌC SỐ LIỆU THỰC TẾ từ trạm cảm biến tại vườn (N, P, K, pH, nhiệt độ, độ ẩm đất, EC)."""
-        # Trả về JSON string giả lập
-        mock_data = {
-            "N": "120 mg/kg (Thấp)",
-            "P": "45 mg/kg (Trung bình)",
-            "K": "180 mg/kg (Khá)",
-            "pH": 4.5,
-            "nhiet_do_dat": 29.5,
-            "do_am_dat": 40,
-            "EC": 3.2,
-        }
-        return f"Dữ liệu cảm biến hiện tại: {json.dumps(mock_data, ensure_ascii=False)}"
+    def iot_sensor_tool(station_id: str) -> str:
+        """Lấy số liệu cảm biến hiện tại (N,P,K,pH...) của một trạm cụ thể."""
+        data = MOCK_SYSTEM_DB["station_data"].get(station_id, {}).get("iot")
+        if not data:
+            return f"Lỗi: Không tìm thấy dữ liệu cảm biến cho trạm {station_id}."
+        return f"Dữ liệu IoT trạm {station_id}: {json.dumps(data)}"
 
-    # ==========================================
-    # TOOL 3: QUY TRÌNH CANH TÁC (Giả lập)
-    # ==========================================
-    @tool("Tra_cuu_quy_trinh_canh_tac")
-    def farming_process_tool(crop_name: str) -> str:
-        """Sử dụng công cụ này để lấy các bước/giai đoạn trong quy trình canh tác của một loại cây trồng cụ thể."""
-        crop_name = crop_name.lower()
-        if "lúa" in crop_name:
-            return "Quy trình lúa: 1. Làm đất/Sạ -> 2. Bón phân đợt 1 (7-10 ngày) -> 3. Đẻ nhánh -> 4. Làm đòng -> 5. Trổ bông."
-        elif "xoài" in crop_name:
-            return "Quy trình xoài: 1. Phục hồi sau thu hoạch -> 2. Xử lý ra hoa -> 3. Chăm sóc trái non -> 4. Bao trái."
-        else:
-            return f"Quy trình chung cho {crop_name}: 1. Chuẩn bị đất -> 2. Gieo/Trồng -> 3. Bón phân -> 4. Thu hoạch."
+    # Cập nhật Tool 3: Lấy Sinh trưởng theo Trạm
+    @tool("Lay_giai_doan_sinh_truong_hien_tai")
+    def current_stage_tool(station_id: str) -> str:
+        """Lấy thông tin giai đoạn sinh trưởng hiện tại của cây trồng tại trạm."""
+        data = MOCK_SYSTEM_DB["station_data"].get(station_id, {}).get("stage")
+        if not data:
+            return f"Lỗi: Không tìm thấy dữ liệu sinh trưởng cho trạm {station_id}."
+        return f"Giai đoạn sinh trưởng trạm {station_id}: {json.dumps(data)}"
 
     # ==========================================
     # TOOL 4: THỜI TIẾT (Giả lập)
@@ -77,7 +80,9 @@ def get_chat_agent():
     @tool(weather_skill.name)
     def weather_tool(location: str) -> str:
         """Sử dụng công cụ này để lấy thông tin thời tiết (nhiệt độ, mưa, nắng) hiện tại ở một khu vực cụ thể."""
-        result: SkillResult = weather_skill.run(location) # Truyền location vào làm query
+        result: SkillResult = weather_skill.run(
+            location
+        )  # Truyền location vào làm query
         try:
             state = agent_shared_state.get()
             state["skill_result"] = result
@@ -86,21 +91,36 @@ def get_chat_agent():
         return result.answer
 
     # Gộp tất cả tools lại
-    tools = [agriculture_tool, iot_sensor_tool, farming_process_tool, weather_tool]
+    tools = [agriculture_tool, iot_sensor_tool, current_stage_tool, weather_tool]
 
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                """Bạn là kỹ sư tư vấn nông nghiệp AI FarmMate. Bạn có quyền truy cập vào 4 hệ thống: 
-                1. Dữ liệu cảm biến IoT thực tế tại vườn.
-                2. Dữ liệu thời tiết trực tuyến.
-                3. Quy trình canh tác chuẩn.
-                4. Hệ thống tài liệu chuyên gia (RAG).
+                """Bạn là kỹ sư trưởng tư vấn nông nghiệp AI FarmMate. 
+
+                THÔNG TIN VỀ NGƯỜI DÙNG HIỆN TẠI:
+                {user_context}
+
+                KHUNG TƯ DUY XỬ LÝ (BẮT BUỘC TUÂN THỦ):
                 
-                LƯU Ý QUAN TRỌNG: 
-                - Hãy chủ động suy luận. Nếu người dùng hỏi tình trạng cây, hãy tự động gọi công cụ Thời tiết và Cảm biến để kiểm tra số liệu, sau đó kết hợp với RAG và Quy trình canh tác để đưa ra chẩn đoán và giải pháp. Trả lời súc tích và có tính chuyên môn cao.
-                - Khi gọi công cụ thời tiết, nếu địa danh là một Huyện/Xã nhỏ (như Cù Lao Dung) mà công cụ báo lỗi không tìm thấy, hãy tự động suy luận xem Huyện/Xã đó thuộc Tỉnh/Thành phố nào (VD: Sóc Trăng) và gọi lại công cụ thời tiết bằng tên Tỉnh/Thành phố đó để lấy dữ liệu chung.""",
+                Bước 1 - PHÂN LOẠI CÂU HỎI & XÁC ĐỊNH BỐI CẢNH:
+                - LOẠI 1 (Câu hỏi kiến thức chung): Nếu user hỏi lý thuyết (VD: "Quy trình trồng lúa?", "Phân ure là gì?"), KHÔNG CẦN gọi IoT hay Thời tiết. Hãy bỏ qua bước xác định trạm, gọi trực tiếp công cụ RAG hoặc Quy trình canh tác để trả lời.
+                - LOẠI 2 (Câu hỏi về tình trạng vườn thực tế): Nếu user yêu cầu tư vấn hiện tại (VD: "Nay bón phân gì?", "Kiểm tra vườn giúp tôi"):
+                   + Hãy xem xét lịch sử trò chuyện và câu hỏi hiện tại. Nếu user CÓ NHIỀU TRẠM nhưng chưa rõ đang nói về trạm nào, hãy DỪNG LẠI và hỏi lịch sự: "Dạ, anh/chị muốn kiểm tra cho trạm nào ạ?".
+                   + Nếu user đã nói rõ tên trạm, loại cây, hoặc vị trí khớp với 'THÔNG TIN VỀ NGƯỜI DÙNG', tiến hành lấy 'station_id' và 'location'.
+
+                Bước 2 - THU THẬP DỮ LIỆU (Chỉ dành cho Câu hỏi LOẠI 2): 
+                - Dùng 'station_id' gọi Cảm biến IoT và Giai đoạn sinh trưởng.
+                - Dùng 'location' gọi Thời tiết.
+
+                Bước 3 - CHUYỂN HÓA & TRUY VẤN RAG:
+                - Kết hợp GIAI ĐOẠN SINH TRƯỞNG và TÌNH TRẠNG ĐẤT để dịch thành TỪ KHÓA CHUYÊN MÔN (Không dùng số liệu thô).
+                - Gọi công cụ RAG bằng các từ khóa kỹ thuật đó.
+
+                Bước 4 - TỔNG HỢP VÀ TƯ VẤN (KỶ LUẬT THÉP):
+                - Nếu RAG có dữ liệu: Hòa trộn kết quả từ IoT, Giai đoạn, Thời tiết và RAG thành đoạn văn tự nhiên. Đưa ra hành động cụ thể BÁM SÁT 100% vào RAG.
+                - Nếu RAG báo không đủ thông tin: Tuyệt đối KHÔNG tự suy diễn liều lượng phân bón/thuốc trừ sâu. Chỉ báo cáo tình trạng IoT/Thời tiết và khuyên liên hệ kỹ sư địa phương.""",
             ),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
