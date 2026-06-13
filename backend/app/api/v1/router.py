@@ -3,6 +3,7 @@ from app.api.v1.endpoints import documents
 from app.api.v1.endpoints import chat
 from app.api.v1.endpoints import auth
 from app.api.v1.endpoints import user
+from app.api.v1.endpoints import conversations
 
 # Khởi tạo router tổng cho phiên bản 1 (v1)
 api_router = APIRouter()
@@ -17,3 +18,4 @@ api_router.include_router(
 api_router.include_router(chat.router, prefix="/chat", tags=["Chatbot"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(user.router, prefix="/users", tags=["Authentication"])
+api_router.include_router(conversations.router, prefix="/conversations", tags=["Conversations"])
