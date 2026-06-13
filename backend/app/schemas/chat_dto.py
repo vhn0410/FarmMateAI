@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
         ..., json_schema_extra={"example": "Trồng dừa ở vùng đất mặn cần bón phân gì?"}
     )
     session_id: str = Field(
-        default="default_session", description="Dùng để lưu lịch sử chat sau này"
+        default=None, description="Dùng để lưu lịch sử chat sau này"
     )
 
 
