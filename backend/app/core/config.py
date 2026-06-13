@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     openweathermap_api_key: str
     # Authentication setting
     auth_mode: str 
+    # Keycloak
+    keycloak_url:str
     # THÊM DÒNG NÀY VÀO:
     jwt_secret_key: str = "123456"
 

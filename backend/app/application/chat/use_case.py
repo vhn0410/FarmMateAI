@@ -63,7 +63,7 @@ class ChatUseCase:
         agent_shared_state.set(my_state)
 
         # 2. Gọi Agent chạy
-        result = self.agent.invoke({"input": query, "chat_history": []})
+        result = self.agent.invoke({"input": query, "chat_history": [], "user_context": []})
         bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
 
         # 3. LẤY KẾT QUẢ TỪ CHIẾC HỘP SAU KHI TOOL CHẠY XONG
