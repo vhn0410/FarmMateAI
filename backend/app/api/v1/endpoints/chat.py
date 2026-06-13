@@ -3,9 +3,8 @@ from app.schemas.chat_dto import ChatRequest, ChatResponse
 from app.application.chat.use_case import ChatUseCase
 from app.infrastructure.llm.openai_client import OpenAIClient
 from fastapi.responses import StreamingResponse
-
+from app.core.security import get_current_user
 router = APIRouter()
-# chat_use_case = ChatUseCase()
 
 
 def get_chat_use_case():
@@ -17,7 +16,7 @@ def get_chat_use_case():
 
 @router.post("/", response_model=ChatResponse)
 async def chat_with_farmmate(
-    request: ChatRequest, chat_use_case: ChatUseCase = Depends(get_chat_use_case)
+    request: ChatRequest, chat_use_case: ChatUseCase = Depends(get_chat_use_case), current_user: dict = Depends(get_current_user)
 ):
     """
     API gửi câu hỏi cho AI Nông nghiệp.
@@ -29,7 +28,7 @@ async def chat_with_farmmate(
 
 @router.post("/stream")
 async def stream_chat_with_farmmate(
-    request: ChatRequest, use_case: ChatUseCase = Depends(get_chat_use_case)
+    request: ChatRequest, use_case: ChatUseCase = Depends(get_chat_use_case), current_user: dict = Depends(get_current_user)
 ):
     """
     API Streaming: Trả về từng chữ (SSE).

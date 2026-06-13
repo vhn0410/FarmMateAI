@@ -16,9 +16,17 @@ class Settings(BaseSettings):
     drive_ground_truth_folder_id: str
     openweathermap_base_url: str
     openweathermap_api_key: str
+    # Authentication setting
+    auth_mode: str 
+    # Keycloak
+    keycloak_url:str
+    # THÊM DÒNG NÀY VÀO:
+    jwt_secret_key: str = "123456"
+
     # Application Settings
     environment: str = "development"
     debug: bool = False
+
 
     class Config:
         env_file = ".env"

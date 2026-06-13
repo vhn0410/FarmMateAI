@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 from app.agents.orchestrator import get_chat_agent, agent_shared_state
 from app.application.chat.response_enhancer import ResponseEnhancer
 from app.domain.interfaces.llm_provider import ILLMProvider
+from app.agents.mocks.mock_system import MOCK_SYSTEM_DB
 
 
 class ChatUseCase:
@@ -62,7 +63,7 @@ class ChatUseCase:
         agent_shared_state.set(my_state)
 
         # 2. Gọi Agent chạy
-        result = self.agent.invoke({"input": query, "chat_history": []})
+        result = self.agent.invoke({"input": query, "chat_history": [], "user_context": []})
         bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
 
         # 3. LẤY KẾT QUẢ TỪ CHIẾC HỘP SAU KHI TOOL CHẠY XONG
@@ -180,10 +181,26 @@ class ChatUseCase:
         agent_shared_state.set(my_state)
 
         try:
+            # Giả sử bạn lấy được thông tin này từ JWT Token hoặc Session
+            current_user_id = "user_vu_001"
+            user_stations = MOCK_SYSTEM_DB.get(current_user_id, [])
+
+            # Biến list thành một câu văn dễ hiểu cho LLM
+            user_context_text = (
+                f"Người dùng này sở hữu {len(user_stations)} trạm quan trắc:\n"
+            )
+            for st in user_stations:
+                user_context_text += f"- Trạm '{st['station_name']}' (ID: {st['station_id']}), trồng {st['crop']}, nằm tại {st['location']}.\n"
+
             yield f"data: {json.dumps({'event': 'status', 'message': 'Đang phân tích câu hỏi...'})}\n\n"
 
             async for event in self.agent.astream_events(
-                {"input": request.query, "chat_history": []}, version="v2"
+                {
+                    "input": request.query,
+                    "chat_history": [],
+                    "user_context": user_context_text,
+                },
+                version="v2",
             ):
                 kind = event["event"]
 
