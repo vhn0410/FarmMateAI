@@ -34,8 +34,10 @@ class AgricultureRAGSkill(BaseSkill):
         # Khởi tạo Hybrid Retriever CỰC KỲ GỌN NHẸ
         # logging.info("Đang khởi tạo Postgres Hybrid Retriever (Vector + FTS)...")
         # self.retriever = self.vector_store_provider.get_hybrid_retriever(k=10)
-        # Khởi tạo Parent document Retriever 
-        logging.info("Đang khởi tạo Postgres Parent document Retriever (Vector + FTS)...")
+        # Khởi tạo Parent document Retriever
+        logging.info(
+            "Đang khởi tạo Postgres Parent document Retriever (Vector + FTS)..."
+        )
         self.retriever = self.vector_store_provider.get_parent_document_retriever()
 
         # ==========================================
