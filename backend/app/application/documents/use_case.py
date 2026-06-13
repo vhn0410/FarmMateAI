@@ -50,7 +50,7 @@ class DocumentUseCase:
             source_file = doc.metadata.get("source", "Unknown")
             file_id = self._extract_file_id(source_file)
             file_name = self._extract_file_name(doc, source_file)
-            
+
             processed_file_ids.add(file_id)
 
             # 2. Cắt tài liệu thành các Parent Chunks dựa trên Markdown
@@ -58,13 +58,19 @@ class DocumentUseCase:
 
             # 3. Gắn metadata chi tiết cho từng Parent Chunk
             for md_doc in md_split_docs:
-                enriched_doc = self._enrich_metadata(md_doc, source_file, file_id, file_name)
+                enriched_doc = self._enrich_metadata(
+                    md_doc, source_file, file_id, file_name
+                )
                 natural_parent_docs.append(enriched_doc)
 
-        print(f"✂️ Đã tạo {len(natural_parent_docs)} Parent Chunks tự nhiên. Tiến hành lưu database...")
+        print(
+            f"✂️ Đã tạo {len(natural_parent_docs)} Parent Chunks tự nhiên. Tiến hành lưu database..."
+        )
 
         # 4. Giao phó việc cắt Child & lưu trữ cho Provider (Dependency Inversion)
-        success = self._save_with_pdr_and_mark_processed(natural_parent_docs, processed_file_ids)
+        success = self._save_with_pdr_and_mark_processed(
+            natural_parent_docs, processed_file_ids
+        )
 
         if success:
             print("🎉 Quá trình Ingestion hoàn tất 100%!")
@@ -112,14 +118,16 @@ class DocumentUseCase:
 
         return doc
 
-    def _save_with_pdr_and_mark_processed(self, parent_docs: List[Document], file_ids: set) -> bool:
+    def _save_with_pdr_and_mark_processed(
+        self, parent_docs: List[Document], file_ids: set
+    ) -> bool:
         """
         Gọi PDR từ tầng Infrastructure để xử lý lưu trữ toàn diện, sau đó đánh dấu file.
         """
         try:
             # Lấy công cụ PDR đã được cấu hình sẵn từ Provider
             pdr_retriever = self.vector_store_provider.get_parent_document_retriever()
-            
+
             # PDR tự động cắt Child chunks, lưu vào PGVector và lưu Parent vào DocStore (JSONB)
             pdr_retriever.add_documents(parent_docs, ids=None)
             print("✅ Đã lưu thành công vào Vector Database và DocStore.")
