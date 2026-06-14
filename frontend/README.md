@@ -74,6 +74,7 @@ export default defineConfig([
 
 
 # Project structure
+```
 src/
 ├── domain/               # Lớp trung tâm: Chứa Entities và Interfaces
 │   ├── models/           # Các TypeScript Interfaces lấy từ openapi.json (VD: User, ChatMessage)
@@ -92,3 +93,4 @@ src/
     ├── components/       # Các UI component dùng chung (Button, Layout)
     ├── features/         # Gom nhóm UI theo tính năng (chat, auth, sidebar)
     └── pages/            # Các trang chính (ChatPage, LoginPage)
+```
