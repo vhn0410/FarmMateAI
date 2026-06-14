@@ -10,6 +10,10 @@ import uuid
 from app.infrastructure.db.models import MessageModel, ConversationModel
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from langchain_core.messages.human import HumanMessage
+from langchain_core.messages.ai import AIMessage
+
+
 class ChatUseCase:
     def __init__(self, llm_provider: ILLMProvider, db: Session):
         self.agent = get_chat_agent()
@@ -195,24 +199,52 @@ class ChatUseCase:
                 new_conv = ConversationModel(
                     id=str(uuid.uuid4()),
                     user_id=current_user.id,
-                    title=request.query[:50] # Lấy 50 ký tự đầu làm tiêu đề tạm
+                    title=request.query[:50],  # Lấy 50 ký tự đầu làm tiêu đề tạm
                 )
                 self.db.add(new_conv)
                 self.db.commit()
                 conversation_id = new_conv.id
             else:
                 # TRƯỜNG HỢP 2: FE gửi session_id lên -> Bắt buộc phải TỒN TẠI và ĐÚNG CHỦ SỞ HỮU
-                conv = self.db.query(ConversationModel).filter(
-                    ConversationModel.id == conversation_id,
-                    ConversationModel.user_id == current_user.id # Cực kỳ quan trọng: Ngăn lỗi IDOR
-                ).first()
-                
+                conv = (
+                    self.db.query(ConversationModel)
+                    .filter(
+                        ConversationModel.id == conversation_id,
+                        ConversationModel.user_id
+                        == current_user.id,  # Cực kỳ quan trọng: Ngăn lỗi IDOR
+                    )
+                    .first()
+                )
+
                 if not conv:
                     # Nếu FE gửi ID bậy bạ, hoặc ID của người khác -> Quăng lỗi ngay!
                     raise HTTPException(
-                        status_code=404, 
-                        detail="Session ID không hợp lệ hoặc bạn không có quyền truy cập hội thoại này."
+                        status_code=404,
+                        detail="Session ID không hợp lệ hoặc bạn không có quyền truy cập hội thoại này.",
                     )
+
+            # =======================================================
+            # PHASE 1.5: LẤY LỊCH SỬ CHAT TỪ DATABASE
+            # =======================================================
+            # Lấy 10 tin nhắn gần nhất (tránh lấy quá nhiều làm tràn Token của LLM)
+            past_messages = (
+                self.db.query(MessageModel)
+                .filter(MessageModel.conversation_id == conversation_id)
+                .order_by(MessageModel.created_at.desc())
+                .limit(10)
+                .all()
+            )
+
+            # Đảo ngược list để trả về đúng thứ tự thời gian (cũ -> mới)
+            past_messages.reverse()
+
+            # Chuyển đổi Model Database sang định dạng của LangChain
+            chat_history = []
+            for msg in past_messages:
+                if msg.sender_type == "user":
+                    chat_history.append(HumanMessage(content=msg.content))
+                elif msg.sender_type == "ai":
+                    chat_history.append(AIMessage(content=msg.content))
 
             # =======================================================
             # PHASE 2: LƯU CÂU HỎI CỦA USER
@@ -243,7 +275,7 @@ class ChatUseCase:
             async for event in self.agent.astream_events(
                 {
                     "input": request.query,
-                    "chat_history": [],  # Sau này bạn có thể query DB để nhét lịch sử chat vào đây
+                    "chat_history": chat_history,  # Sau này bạn có thể query DB để nhét lịch sử chat vào đây
                     "user_context": user_context_text,
                 },
                 version="v2",

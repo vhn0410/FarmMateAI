@@ -1,7 +1,7 @@
 # Giả lập Database của hệ thống (Entity Relationship)
 MOCK_SYSTEM_DB = {
     # Bảng User -> Stations
-    "user_vu_001": [
+    "ff2f26bd-e6e5-4b15-9d89-9f514289f510": [
         {
             "station_id": "TRAM_01",
             "station_name": "Ruộng lúa số 1",
