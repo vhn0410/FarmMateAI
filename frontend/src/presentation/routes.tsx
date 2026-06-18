@@ -2,25 +2,20 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage'; // <--- Import component thật
+import { ChatPage } from './pages/ChatPage';
 
-// Mock tạm ChatPage để chờ bước sau ráp reachat.dev
-const ChatPageMock = () => (
-  <div className="flex h-screen items-center justify-center bg-white text-2xl font-bold text-gray-700">
-    Đăng nhập thành công! Đây sẽ là nơi chứa Reachat.dev
-  </div>
-);
 
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />, // <--- Đưa component thật vào đây
+    element: <LoginPage />, 
   },
   {
     element: <ProtectedRoute />, 
     children: [
       {
         path: '/chat',
-        element: <ChatPageMock />,
+        element: <ChatPage />,
       },
     ],
   },
