@@ -1,6 +1,78 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatbot } from '../../../hooks/useChatbot';
 import { useConversations } from '../../../hooks/useConversations';
+import { BarChart, PieChart } from 'reaviz';
+
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const MessageContent: React.FC<{ content: string; onAction: (query: string) => void }> = ({ content, onAction }) => {
+  return (
+    <div className="w-full prose prose-sm max-w-none prose-blue">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={(value: string) => value}
+        components={{
+          a(props) {
+            const { href, children, ...rest } = props;
+            if (href && href.startsWith('#action:')) {
+              // The AI is instructed to use underscores instead of spaces to avoid breaking markdown parsers
+              const query = decodeURIComponent(href.replace('#action:', '')).replace(/_/g, ' ');
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onAction(query);
+                  }}
+                  className="inline-block mt-1 mb-1 px-3 py-1.5 bg-blue-50 text-blue-600 font-medium text-sm rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm cursor-pointer no-underline"
+                >
+                  {children}
+                </button>
+              );
+            }
+            return <a href={href} {...rest}>{children}</a>;
+          },
+          code(props) {
+            const {children, className, node, ...rest} = props;
+            const match = /language-(\w+)/.exec(className || '');
+            
+            if (match && match[1] === 'chart') {
+              try {
+                const jsonStr = String(children).replace(/\n$/, '');
+                const chartConfig = JSON.parse(jsonStr);
+                return (
+                  <div className="my-5 w-full bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg overflow-hidden flex flex-col items-center">
+                     <div className="h-64 w-full flex justify-center items-center">
+                       {chartConfig.type === 'bar' && <BarChart data={chartConfig.data} />}
+                       {chartConfig.type === 'pie' && <PieChart data={chartConfig.data} />}
+                     </div>
+                     
+                     {/* Custom Legend */}
+                     <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 border-t border-slate-700 w-full pt-4">
+                       {chartConfig.data.map((item: any, idx: number) => (
+                         <div key={idx} className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                           <span className="text-slate-400 font-normal">{item.key}:</span>
+                           <span className="text-white text-base">{item.data}</span>
+                         </div>
+                       ))}
+                     </div>
+                  </div>
+                );
+              } catch (e) {
+                console.error('Failed to parse chart JSON', e);
+                return <code {...rest} className={className}>{children}</code>;
+              }
+            }
+            return <code {...rest} className={className}>{children}</code>;
+          }
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
 
 export const ChatWorkspace: React.FC = () => {
   const { messages, isLoading: isChatLoading, sendMessage, sessionId, loadConversation, startNewChat } = useChatbot();
@@ -151,8 +223,8 @@ export const ChatWorkspace: React.FC = () => {
 
                         {/* Content */}
                         {msg.content && (
-                          <div className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-50 text-gray-700 leading-relaxed">
-                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                          <div className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-50 text-gray-700 leading-relaxed overflow-hidden">
+                            <MessageContent content={msg.content} onAction={(query) => sendMessage(query)} />
                           </div>
                         )}
                         
