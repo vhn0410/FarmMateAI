@@ -1,7 +1,7 @@
 // src/presentation/components/ProtectedRoute.tsx
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuthStore } from '../../application/store/useAuthStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 export const ProtectedRoute: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);

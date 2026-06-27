@@ -1,5 +1,5 @@
-import { axiosClient } from '../api/axiosClient';
-import type { ChatRequest, ChatResponse } from '../../domain/models/Chat';
+import { axiosClient } from './axiosClient';
+import type { ChatRequest, ChatResponse } from '../models/Chat';
 
 // Định nghĩa cấu trúc chuẩn theo Backend của bạn
 export interface StreamEvent {

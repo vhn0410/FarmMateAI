@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { type UserProfile } from '../../domain/models/Auth';
+import { type UserProfile } from '../models/Auth';
 interface AuthState {
     user: UserProfile | null;
     isAuthenticated: boolean;
