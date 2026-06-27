@@ -5,30 +5,30 @@ from app.core.config import settings
 
 
 class WeatherSkill(BaseSkill):
-    name = "Lay_du_lieu_thoi_tiet"
+    name = "Get_Weather_Information"
     description = (
-        "Sử dụng công cụ này để lấy thông tin thời tiết (nhiệt độ, độ ẩm, tình trạng mây/mưa) "
-        "hiện tại ở một tỉnh, thành phố hoặc khu vực cụ thể."
+        "Use this tool to get current weather information (temperature, humidity, weather condition) "
+        "for a specific province, city, or location."
     )
 
     def __init__(self):
-        """Khởi tạo Tool Thời tiết."""
-        # Lấy API key từ biến môi trường
+        """Initialize the Weather Tool."""
+        # Get API key from environment variables
         self.api_key = settings.openweathermap_api_key
         self.base_url = settings.openweathermap_base_url
 
     def run(self, query: str, **kwargs) -> SkillResult:
         """
-        Thực thi lấy dữ liệu thời tiết.
-        Biến 'query' ở đây chính là tên địa điểm (location) do LLM truyền vào.
+        Execute weather data retrieval.
+        The 'query' variable here is the location name passed by the LLM.
         """
         location = query.strip()
-        agent_actions = [f"Bắt đầu lấy dữ liệu thời tiết cho khu vực: '{location}'"]
+        agent_actions = [f"Started fetching weather data for location: '{location}'"]
 
-        # Kiểm tra xem đã cấu hình API Key chưa
+        # Check if API Key is configured
         if not self.api_key:
-            error_msg = "Hệ thống chưa được cấu hình OPENWEATHERMAP_API_KEY."
-            agent_actions.append("Lỗi: Thiếu API Key.")
+            error_msg = "System is missing OPENWEATHERMAP_API_KEY configuration."
+            agent_actions.append("Error: Missing API Key.")
             return SkillResult(
                 answer=error_msg,
                 skill_name=self.name,
@@ -37,33 +37,33 @@ class WeatherSkill(BaseSkill):
             )
 
         try:
-            # Tham số gửi lên OpenWeatherMap
+            # Parameters sent to OpenWeatherMap
             params = {
                 "q": location,
                 "appid": self.api_key,
-                "units": "metric",  # Lấy nhiệt độ theo độ C (Celsius)
-                "lang": "vi",  # Trả về mô tả bằng Tiếng Việt
+                "units": "metric",  # Get temperature in Celsius
+                "lang": "en",  # Return description in English
             }
 
-            agent_actions.append("Đang gửi HTTP GET request tới OpenWeatherMap...")
+            agent_actions.append("Sending HTTP GET request to OpenWeatherMap...")
             response = requests.get(self.base_url, params=params, timeout=10)
 
-            # Xử lý kết quả trả về
+            # Process the response
             if response.status_code == 200:
                 data = response.json()
 
-                # Bóc tách các thông số quan trọng
+                # Extract important parameters
                 temp = data["main"]["temp"]
                 humidity = data["main"]["humidity"]
                 description = data["weather"][0]["description"]
                 city_name = data["name"]
 
-                # Tạo câu trả lời cho LLM đọc
+                # Create answer for LLM to read
                 answer = (
-                    f"Dữ liệu thời tiết hiện tại ở {city_name}: "
-                    f"Trời {description}, nhiệt độ {temp}°C, độ ẩm {humidity}%."
+                    f"Current weather data in {city_name}: "
+                    f"Condition: {description}, temperature: {temp}°C, humidity: {humidity}%."
                 )
-                agent_actions.append(f"Thành công: {answer}")
+                agent_actions.append(f"Success: {answer}")
 
                 return SkillResult(
                     answer=answer,
@@ -79,9 +79,9 @@ class WeatherSkill(BaseSkill):
                 )
 
             elif response.status_code == 404:
-                # Trường hợp LLM đưa ra tên địa danh không tồn tại
-                answer = f"Không tìm thấy trạm dữ liệu thời tiết nào cho khu vực '{location}'."
-                agent_actions.append(f"Lỗi 404: Không tìm thấy địa danh '{location}'.")
+                # LLM provided a non-existent location
+                answer = f"Could not find weather data station for location '{location}'."
+                agent_actions.append(f"Error 404: Could not find location '{location}'.")
                 return SkillResult(
                     answer=answer,
                     skill_name=self.name,
@@ -90,8 +90,8 @@ class WeatherSkill(BaseSkill):
                 )
 
             else:
-                answer = f"Lỗi gọi API thời tiết. Mã lỗi: {response.status_code}."
-                agent_actions.append(f"Lỗi API: {response.text}")
+                answer = f"Error calling weather API. Status code: {response.status_code}."
+                agent_actions.append(f"API Error: {response.text}")
                 return SkillResult(
                     answer=answer,
                     skill_name=self.name,
@@ -100,7 +100,7 @@ class WeatherSkill(BaseSkill):
                 )
 
         except Exception as e:
-            error_msg = f"Lỗi hệ thống khi tra cứu thời tiết: {str(e)}"
+            error_msg = f"System error while looking up weather: {str(e)}"
             agent_actions.append(error_msg)
             return SkillResult(
                 answer=error_msg,

@@ -5,7 +5,8 @@ from typing import AsyncGenerator
 from app.agents.orchestrator import get_chat_agent, agent_shared_state
 from app.application.chat.response_enhancer import ResponseEnhancer
 from app.domain.interfaces.llm_provider import ILLMProvider
-from app.agents.mocks.mock_system import MOCK_SYSTEM_DB
+from app.domain.interfaces.llm_provider import ILLMProvider
+from app.infrastructure.api.aaem_client import AAEMClient
 import uuid
 from app.infrastructure.db.models import MessageModel, ConversationModel
 from sqlalchemy.orm import Session
@@ -21,12 +22,12 @@ class ChatUseCase:
         self.llm_provider = llm_provider
         self.db = db
 
-    async def process_chat(self, request: ChatRequest) -> ChatResponse:
+    async def process_chat(self, request: ChatRequest, current_user=None, token: str = None) -> ChatResponse:
         """Xử lý luồng chat chính với đầy đủ metadata."""
         try:
             start_time = time.time()
 
-            bot_answer, skill_result = self._invoke_agent(request.query)
+            bot_answer, skill_result = self._invoke_agent(request.query, token, current_user)
 
             sources, agent_actions, skill_tokens = self._extract_metadata(
                 bot_answer=bot_answer, skill_result=skill_result
@@ -62,16 +63,26 @@ class ChatUseCase:
                 session_id=request.session_id, start_time=start_time
             )
 
-    def _invoke_agent(self, query: str):
+    def _invoke_agent(self, query: str, token: str = None, current_user=None):
         """Reset cache và gọi Agent xử lý câu hỏi (Luồng đồng bộ)."""
 
         # 1. TẠO CHIẾC HỘP RIÊNG CHO REQUEST NÀY
         my_state = {}
+        if token:
+            my_state["access_token"] = token
         agent_shared_state.set(my_state)
+        
+        user_context_text = "No station information available."
+        if token:
+            aaem_client = AAEMClient()
+            stations = aaem_client.fetch_all_user_stations(token)
+            user_context_text = f"This user owns {len(stations)} monitoring stations:\n"
+            for st in stations:
+                user_context_text += f"- Station '{st.get('name', 'Unknown')}' (ID: {st.get('stationId', 'Unknown')}).\n"
 
         # 2. Gọi Agent chạy
         result = self.agent.invoke(
-            {"input": query, "chat_history": [], "user_context": []}
+            {"input": query, "chat_history": [], "user_context": user_context_text}
         )
         bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
 
@@ -167,7 +178,7 @@ class ChatUseCase:
             status="error",
             data=ChatData(
                 session_id=session_id,
-                answer="Đã có lỗi hệ thống xảy ra khi xử lý câu hỏi của bạn.",
+                answer="A system error occurred while processing your request.",
                 sources=[],
                 suggested_questions=[],
             ),
@@ -179,13 +190,15 @@ class ChatUseCase:
         )
 
     async def stream_chat(
-        self, request: ChatRequest, current_user
+        self, request: ChatRequest, current_user, token: str = None
     ) -> AsyncGenerator[str, None]:
         start_time = time.time()
         bot_answer = ""
         is_inside_tool = False
 
         my_state = {}
+        if token:
+            my_state["access_token"] = token
         agent_shared_state.set(my_state)
 
         try:
@@ -260,17 +273,23 @@ class ChatUseCase:
             # =======================================================
             # PHASE 3: THỰC THI LUỒNG AGENT LANGGRAPH
             # =======================================================
-            # Sửa chỗ hardcode lúc trước thành ID thật của người đang đăng nhập
-            current_user_id = current_user.id
-            user_stations = MOCK_SYSTEM_DB.get(current_user_id, [])
+            # Thay vì hardcode, gọi AAEM API lấy trạm thật
+            user_context_text = "No station information available."
+            if token:
+                try:
+                    aaem_client = AAEMClient()
+                    stations = aaem_client.fetch_all_user_stations(token)
+                    user_context_text = f"This user owns {len(stations)} monitoring stations:\n"
+                    for st in stations:
+                        user_context_text += f"- Station '{st.get('name', 'Unknown')}' (ID: {st.get('stationId', 'Unknown')}).\n"
+                except Exception as e:
+                    if hasattr(e, 'response') and e.response is not None and e.response.status_code == 401:
+                        yield f"data: {json.dumps({'event': 'error', 'code': 401, 'message': 'Unauthorized'})}\n\n"
+                        return
+                    else:
+                        print(f"Error fetching stations: {e}")
 
-            user_context_text = (
-                f"Người dùng này sở hữu {len(user_stations)} trạm quan trắc:\n"
-            )
-            for st in user_stations:
-                user_context_text += f"- Trạm '{st['station_name']}' (ID: {st['station_id']}), trồng {st['crop']}, nằm tại {st['location']}.\n"
-
-            yield f"data: {json.dumps({'event': 'status', 'message': 'Đang phân tích câu hỏi...'})}\n\n"
+            yield f"data: {json.dumps({'event': 'status', 'message': 'Analyzing your question...'})}\n\n"
 
             async for event in self.agent.astream_events(
                 {
@@ -285,11 +304,11 @@ class ChatUseCase:
                 if kind == "on_tool_start":
                     is_inside_tool = True
                     tool_name = event.get("name", "công cụ")
-                    yield f"data: {json.dumps({'event': 'status', 'message': f'Đang tra cứu ({tool_name})...'})}\n\n"
+                    yield f"data: {json.dumps({'event': 'status', 'message': f'Looking up ({tool_name})...'})}\n\n"
 
                 elif kind == "on_tool_end":
                     is_inside_tool = False
-                    yield f"data: {json.dumps({'event': 'status', 'message': 'Đã thu thập dữ liệu, đang tổng hợp câu trả lời...'})}\n\n"
+                    yield f"data: {json.dumps({'event': 'status', 'message': 'Data gathered, synthesizing response...'})}\n\n"
 
                 elif kind == "on_chat_model_stream":
                     if not is_inside_tool:

@@ -11,6 +11,8 @@ from app.agents.skills.base import SkillResult
 from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 from app.infrastructure.llm.openai_client import OpenAIClient
 from app.agents.mocks.mock_system import MOCK_SYSTEM_DB
+from app.infrastructure.api.aaem_client import AAEMClient
+from app.infrastructure.api.ppm_client import PPMClient
 
 
 agent_shared_state = contextvars.ContextVar("agent_shared_state")
@@ -29,20 +31,20 @@ def get_chat_agent():
     @tool(rag_skill.name)
     def agriculture_tool(query: str) -> str:
         """
-        CÔNG CỤ TRA CỨU SỔ TAY CHUYÊN GIA NÔNG NGHIỆP.
-        !!! CẢNH BÁO ĐỎ CHO THAM SỐ 'query' !!!
+        AGRICULTURAL EXPERT HANDBOOK LOOKUP TOOL.
+        !!! RED ALERT FOR 'query' PARAMETER !!!
 
-        1. TUYỆT ĐỐI KHÔNG BAO GIỜ truyền số liệu thô hoặc kết quả cảm biến vào query (KHÔNG dùng các từ như: "pH 4.5", "N 120", "P 45", "ẩm 40%"). Nếu vi phạm, hệ thống sẽ lỗi.
+        1. ABSOLUTELY NEVER pass raw numbers or sensor data into the query (DO NOT use words like: "pH 4.5", "N 120", "P 45", "moisture 40%"). Doing so will cause system errors.
 
-        2. BẮT BUỘC PHẢI DỊCH số liệu thành TỪ KHÓA CHUYÊN MÔN trước khi tìm kiếm:
+        2. YOU MUST translate the data into PROFESSIONAL KEYWORDS before searching:
 
-           - Nếu pH < 5 -> Phải dịch thành "đất chua", "đất phèn", "cải tạo đất".
+           - If pH < 5 -> Translate to "acidic soil", "alum soil", "soil improvement".
 
-           - Nếu N, P, K thấp -> Phải dịch thành "thiếu dinh dưỡng", "bón lót", "bón thúc".
+           - If N, P, K are low -> Translate to "nutrient deficiency", "basal fertilizer", "top dressing".
 
-        3. Ví dụ truy vấn ĐÚNG: "Cách bón phân thúc đẻ nhánh cho lúa trên đất chua phèn"
+        3. CORRECT query example: "How to apply top dressing for tillering rice on acidic soil"
 
-        4. Ví dụ truy vấn SAI: "Cách bón phân lúa pH 4.5 N 120"
+        4. INCORRECT query example: "How to fertilize rice pH 4.5 N 120"
 
         """
         result: SkillResult = rag_skill.run(query)
@@ -56,30 +58,111 @@ def get_chat_agent():
 
         return result.answer
 
-    # Cập nhật Tool 2: Lấy IoT theo Trạm
-    @tool("Lay_du_lieu_cam_bien_IoT")
+    # Tool 2: Get IoT Data by Station
+    @tool("Get_IoT_Sensor_Data")
     def iot_sensor_tool(station_id: str) -> str:
-        """Lấy số liệu cảm biến hiện tại (N,P,K,pH...) của một trạm cụ thể."""
-        data = MOCK_SYSTEM_DB["station_data"].get(station_id, {}).get("iot")
-        if not data:
-            return f"Lỗi: Không tìm thấy dữ liệu cảm biến cho trạm {station_id}."
-        return f"Dữ liệu IoT trạm {station_id}: {json.dumps(data)}"
+        """Get current sensor data (N, P, K, pH, etc.) for a specific station."""
+        try:
+            state = agent_shared_state.get()
+            token = state.get("access_token")
+            if not token:
+                return "Error: No access token. Please log in again."
+                
+            aaem_client = AAEMClient()
+            stations = aaem_client.fetch_all_user_stations(token)
+            
+            # Find corresponding station
+            target_station = None
+            for st in stations:
+                if str(st.get("stationId")) == str(station_id):
+                    target_station = st
+                    break
+                    
+            if not target_station:
+                return f"Error: Could not find station with ID {station_id}."
+                
+            # Filter DataStreamId
+            multi_streams = target_station.get("multiDataStreamDTOs", [])
+            stream_map = {}
+            for stream in multi_streams:
+                s_id = stream.get("multiDataStreamId")
+                name = stream.get("multiDataStreamName", "Sensor")
+                if s_id is not None:
+                    stream_map[str(s_id)] = name
+                    
+            if not stream_map:
+                return f"Station {station_id} currently has no sensor connections."
+                
+            # Get latest observations
+            stream_ids = [int(k) for k in stream_map.keys()]
+            observations = aaem_client.get_latest_observations(token, stream_ids)
+            
+            # Map ID -> Sensor Name -> Value
+            result_dict = {}
+            for obs in observations:
+                s_id = str(obs.get("dataStreamId"))
+                val = obs.get("result", "N/A")
+                sensor_name = stream_map.get(s_id, f"Sensor {s_id}")
+                result_dict[sensor_name] = val
+                
+            if not result_dict:
+                return f"Station {station_id} has no observation data yet."
+                
+            return f"IoT Data for station {station_id}: {json.dumps(result_dict, ensure_ascii=False)}"
+            
+        except Exception as e:
+            return f"System error while fetching IoT data: {str(e)}"
 
-    # Cập nhật Tool 3: Lấy Sinh trưởng theo Trạm
-    @tool("Lay_giai_doan_sinh_truong_hien_tai")
-    def current_stage_tool(station_id: str) -> str:
-        """Lấy thông tin giai đoạn sinh trưởng hiện tại của cây trồng tại trạm."""
-        data = MOCK_SYSTEM_DB["station_data"].get(station_id, {}).get("stage")
-        if not data:
-            return f"Lỗi: Không tìm thấy dữ liệu sinh trưởng cho trạm {station_id}."
-        return f"Giai đoạn sinh trưởng trạm {station_id}: {json.dumps(data)}"
+    # Tool 3: Get Global Growth Stage
+    @tool("Get_Current_Growth_Stage")
+    def current_stage_tool(status: str = "IN_PROGRESS") -> str:
+        """Get current growth stage / active tasks for the entire farm (global, no station_id needed).
+        The 'status' parameter defaults to 'IN_PROGRESS', but can be 'OPEN', 'IN_PROGRESS', 'DONE', or 'ALL' (or a combination separated by commas).
+        """
+        try:
+            state = agent_shared_state.get()
+            token = state.get("access_token")
+            if not token:
+                return "Error: No access token. Please log in again."
+                
+            ppm_client = PPMClient()
+            
+            # Parse comma-separated statuses
+            status_list = [s.strip().upper() for s in status.split(",") if s.strip()]
+            
+            if "ALL" in status_list:
+                status_list = ["OPEN", "IN_PROGRESS", "DONE"]
+            
+            if not status_list:
+                status_list = ["IN_PROGRESS"]
+                
+            active_tasks = ppm_client.get_tasks_by_statuses(token, statuses=status_list)
+            
+            status_str = ", ".join(status_list)
+            if not active_tasks:
+                return f"There are currently no tasks with status ({status_str}) for your projects."
+                
+            result_list = []
+            for t in active_tasks:
+                task_name = t.get("name", "Unknown")
+                proj_name = t.get("projectName", "Unnamed Project")
+                start_date = t.get("startDateActual", t.get("startDate", ""))
+                t_status = t.get("status", "Unknown")
+                
+                info = f"- Task: '{task_name}' (Project: '{proj_name}', Status: {t_status})"
+                if start_date:
+                    info += f", started from: {start_date}"
+                result_list.append(info)
+                
+            return f"NOTE FOR AI: This data represents ALL tasks globally across all projects matching the requested statuses. Do NOT repeat it per station.\n\nTasks matching ({status_str}):\n" + "\n".join(result_list)
+            
+        except Exception as e:
+            return f"System error while fetching growth stage data: {str(e)}"
 
-    # ==========================================
-    # TOOL 4: THỜI TIẾT (Giả lập)
-    # ==========================================
-    @tool(weather_skill.name)
+    # Tool 4: Weather (Mock)
+    @tool("Get_Weather_Information")
     def weather_tool(location: str) -> str:
-        """Sử dụng công cụ này để lấy thông tin thời tiết (nhiệt độ, mưa, nắng) hiện tại ở một khu vực cụ thể."""
+        """Use this tool to get current weather information (temperature, rain, sun) for a specific location."""
         result: SkillResult = weather_skill.run(
             location
         )  # Truyền location vào làm query
@@ -97,30 +180,36 @@ def get_chat_agent():
         [
             (
                 "system",
-                """Bạn là kỹ sư trưởng tư vấn nông nghiệp AI FarmMate. 
+                """You are FarmMate AI, an expert agricultural consultant.
 
-                THÔNG TIN VỀ NGƯỜI DÙNG HIỆN TẠI:
+                CURRENT USER INFORMATION:
                 {user_context}
 
-                KHUNG TƯ DUY XỬ LÝ (BẮT BUỘC TUÂN THỦ):
+                PROCESSING FRAMEWORK (STRICTLY FOLLOW):
                 
-                Bước 1 - PHÂN LOẠI CÂU HỎI & XÁC ĐỊNH BỐI CẢNH:
-                - LOẠI 1 (Câu hỏi kiến thức chung): Nếu user hỏi lý thuyết (VD: "Quy trình trồng lúa?", "Phân ure là gì?"), KHÔNG CẦN gọi IoT hay Thời tiết. Hãy bỏ qua bước xác định trạm, gọi trực tiếp công cụ RAG hoặc Quy trình canh tác để trả lời.
-                - LOẠI 2 (Câu hỏi về tình trạng vườn thực tế): Nếu user yêu cầu tư vấn hiện tại (VD: "Nay bón phân gì?", "Kiểm tra vườn giúp tôi"):
-                   + Hãy xem xét lịch sử trò chuyện và câu hỏi hiện tại. Nếu user CÓ NHIỀU TRẠM nhưng chưa rõ đang nói về trạm nào, hãy DỪNG LẠI và hỏi lịch sự: "Dạ, anh/chị muốn kiểm tra cho trạm nào ạ?".
-                   + Nếu user đã nói rõ tên trạm, loại cây, hoặc vị trí khớp với 'THÔNG TIN VỀ NGƯỜI DÙNG', tiến hành lấy 'station_id' và 'location'.
+                Step 1 - CLASSIFY QUESTION & TOOL SELECTION:
+                - If the user asks theory/general knowledge ("How to plant rice?", "What is Urea?"): STRICTLY call `Agriculture_Technical_Advice`. DO NOT call any other tool.
+                - If the user asks for comprehensive advice ("What should I do today?", "Check my farm"): Call `Get_IoT_Sensor_Data`, `Get_Weather_Information`, `Get_Current_Growth_Stage`, AND `Agriculture_Technical_Advice`.
+                - If the user asks for TARGETED metrics, you MUST ONLY call the specific tool requested and NOTHING ELSE:
+                   + Ask for pH, moisture, sensor data -> ONLY call `Get_IoT_Sensor_Data`. (DO NOT call Weather or Growth Stage).
+                   + Ask for weather, rain, forecast -> ONLY call `Get_Weather_Information`.
+                   + Ask for tasks, jobs, growth stages -> ONLY call `Get_Current_Growth_Stage`.
+                
+                Step 2 - STATION HANDLING (If IoT or Weather is needed):
+                - Growth stage (PPM) is GLOBAL. No station ID needed.
+                - IoT and Weather are PER-STATION. If the user has MULTIPLE STATIONS and hasn't specified which one, STOP and politely ask: "Which station would you like to check?". If specified, extract 'station_id' and 'location'.
+                   + IMPORTANT: When extracting 'location' for the Weather tool, remove prefixes like "Khí tượng" or "Lúa" and use only the city/province name (e.g., "Vĩnh Long").
 
-                Bước 2 - THU THẬP DỮ LIỆU (Chỉ dành cho Câu hỏi LOẠI 2): 
-                - Dùng 'station_id' gọi Cảm biến IoT và Giai đoạn sinh trưởng.
-                - Dùng 'location' gọi Thời tiết.
+                Step 3 - TRANSFORMATION & RAG QUERY (Only if comprehensive advice is requested):
+                - Combine GROWTH STAGE and SOIL CONDITION to translate into PROFESSIONAL KEYWORDS.
+                - You MUST call the `Agriculture_Technical_Advice` tool using those keywords. Do this EVEN IF the Weather or IoT tools failed or returned missing data.
 
-                Bước 3 - CHUYỂN HÓA & TRUY VẤN RAG:
-                - Kết hợp GIAI ĐOẠN SINH TRƯỞNG và TÌNH TRẠNG ĐẤT để dịch thành TỪ KHÓA CHUYÊN MÔN (Không dùng số liệu thô).
-                - Gọi công cụ RAG bằng các từ khóa kỹ thuật đó.
-
-                Bước 4 - TỔNG HỢP VÀ TƯ VẤN (KỶ LUẬT THÉP):
-                - Nếu RAG có dữ liệu: Hòa trộn kết quả từ IoT, Giai đoạn, Thời tiết và RAG thành đoạn văn tự nhiên. Đưa ra hành động cụ thể BÁM SÁT 100% vào RAG.
-                - Nếu RAG báo không đủ thông tin: Tuyệt đối KHÔNG tự suy diễn liều lượng phân bón/thuốc trừ sâu. Chỉ báo cáo tình trạng IoT/Thời tiết và khuyên liên hệ kỹ sư địa phương.""",
+                Step 4 - SYNTHESIZE & ADVISE:
+                - Always answer the user in Vietnamese in a natural, helpful consultant tone.
+                - ONLY base your advice on the data returned by the tools. If a tool doesn't return the requested data, explain the limitation naturally based on the context.
+                   + Example: If the user asks for soil pH but the IoT tool only returns weather data, naturally explain that the station doesn't have a soil pH sensor.
+                   + Example: If the `Agriculture_Technical_Advice` (RAG) tool was used but found no data, state clearly that your document system currently lacks this information. **CRITICAL: You MUST STOP there. Do NOT provide any general advice, guesses, or recommendations from your own knowledge.**
+                - ABSOLUTELY DO NOT hallucinate or guess any agricultural techniques, fertilizer names, or dosages under any circumstances.""",
             ),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),

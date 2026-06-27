@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+import requests
 
 from app.core.dependencies import get_auth_provider
 from app.domain.interfaces.auth_provider import IAuthProvider
+from app.core.security import get_current_user, oauth2_scheme
+from app.infrastructure.api.aaem_client import AAEMClient
+from app.infrastructure.api.ppm_client import PPMClient
 
 router = APIRouter()
 
@@ -26,3 +30,31 @@ def login_for_access_token(
         "access_token": token, 
         "token_type": "bearer"
     }
+
+@router.get("/verify")
+def verify_token(
+    current_user: dict = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme)
+):
+    """
+    API dùng để Frontend Health Check.
+    Kiểm tra token có hợp lệ không (bao gồm cả việc check với upstream AAEM API).
+    """
+    try:
+        aaem_client = AAEMClient()
+        aaem_client.get_agri_areas(token)
+        
+        ppm_client = PPMClient()
+        ppm_client.get_projects(token)
+        
+        return {"status": "ok", "message": "Token is valid", "user": current_user}
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 401:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired in upstream service"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error verifying token with upstream"
+        )

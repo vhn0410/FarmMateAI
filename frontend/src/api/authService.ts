@@ -22,4 +22,8 @@ export class AuthService implements IAuthRepository {
     const response = await axiosClient.get<UserProfile>('/api/v1/users/me');
     return response.data;
   }
+
+  async verifyToken(): Promise<void> {
+    await axiosClient.get('/api/v1/auth/verify');
+  }
 }

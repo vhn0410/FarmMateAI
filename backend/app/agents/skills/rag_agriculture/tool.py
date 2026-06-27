@@ -13,52 +13,49 @@ from app.domain.interfaces.llm_provider import ILLMProvider
 
 
 class AgricultureRAGSkill(BaseSkill):
-    name = "Tu_van_ky_thuat_nong_nghiep"
+    name = "Agriculture_Technical_Advice"
     description = (
-        "Sử dụng công cụ này để trả lời các câu hỏi về nông nghiệp, môi trường đất, "
-        "kỹ thuật canh tác và chất lượng nước. Đầu vào là câu hỏi của người dùng."
+        "Use this tool to answer questions about agriculture, soil environment, "
+        "farming techniques, and water quality. Input is the user's question."
     )
 
     def __init__(
         self, vector_store_provider: IVectorStoreProvider, llm_provider: ILLMProvider
     ):
         """
-        Khởi tạo Agriculture RAG Skill với Dependency Injection.
+        Initialize Agriculture RAG Skill with Dependency Injection.
 
-        :param vector_store_provider: Implementation của IVectorStoreProvider
-        :param llm_provider: Implementation của ILLMProvider
+        :param vector_store_provider: Implementation of IVectorStoreProvider
+        :param llm_provider: Implementation of ILLMProvider
         """
         self.vector_store_provider = vector_store_provider
         self.llm_provider = llm_provider
 
-        # Khởi tạo Hybrid Retriever CỰC KỲ GỌN NHẸ
-        # logging.info("Đang khởi tạo Postgres Hybrid Retriever (Vector + FTS)...")
-        # self.retriever = self.vector_store_provider.get_hybrid_retriever(k=10)
-        # Khởi tạo Parent document Retriever
+        # Initialize Parent document Retriever
         logging.info(
-            "Đang khởi tạo Postgres Parent document Retriever (Vector + FTS)..."
+            "Initializing Postgres Parent document Retriever (Vector + FTS)..."
         )
         self.retriever = self.vector_store_provider.get_parent_document_retriever()
 
         # ==========================================
-        # TÍCH HỢP PROMPT CHỐNG SUY DIỄN
+        # INTEGRATE ANTI-HALLUCINATION PROMPT
         # ==========================================
         llm = self.llm_provider.get_llm()
 
-        system_prompt = """Bạn là chuyên gia phân tích tài liệu khoa học. Nhiệm vụ của bạn là trả lời câu hỏi DỰA HOÀN TOÀN vào ngữ cảnh được cung cấp.
-            Quy tắc bắt buộc:
-            1. KHÔNG SUY DIỄN: Chỉ sử dụng thông tin có trong ngữ cảnh. Không thêm kiến thức bên ngoài, không tự ý giải thích hoặc kết luận nếu ngữ cảnh không ghi rõ.
-            2. ĐỐI SÁNH SỐ LIỆU CHÍNH XÁC (QUAN TRỌNG):
-               - Khi ngữ cảnh liệt kê danh sách (ví dụ: A, B, C có giá trị lần lượt là X, Y, Z), BẠN PHẢI ghép đúng đối tượng với số liệu tương ứng. Tuyệt đối không hoán đổi số liệu của đối tượng này cho đối tượng khác.
-               - Không tự ý làm tròn số liệu.
-            3. XỬ LÝ DỮ LIỆU MÂU THUẪN:
-               - Nếu ngữ cảnh có nhiều giá trị khác nhau cho cùng một đối tượng ở các đoạn khác nhau, hãy ưu tiên trích xuất chính xác theo đúng cụm từ/câu chứa thông tin phân loại đó, hoặc nêu rõ cả hai nếu cần thiết. KHÔNG tự ý gộp số liệu.
-            4. CHỈ TRÍCH XUẤT ĐỀ XUẤT CÓ SẴN: Nếu ngữ cảnh đề cập giải pháp/đề xuất, chỉ nêu đúng những gì được viết, không tự nghĩ thêm.
-            5. XỬ LÝ CÂU HỎI MẬP MỜ/TỪ KHÓA: Nếu đầu vào của người dùng chỉ là một vài từ khóa ngắn (ví dụ: tên địa danh, tên cây trồng) mà không phải một câu hỏi rõ ràng, hãy tóm tắt những thông tin quan trọng nhất mà ngữ cảnh nhắc đến về các từ khóa đó.
-            6. XỬ LÝ KHI THIẾU THÔNG TIN: Nếu không đủ thông tin để trả lời, hãy nói rõ: 'Ngữ cảnh không cung cấp đủ thông tin về vấn đề này.'
-            7. HÌNH THỨC: Câu trả lời cần súc tích, cấu trúc rõ ràng (nhận định → số liệu trích dẫn cụ thể → đề xuất nếu có).
+        system_prompt = """You are an expert in analyzing scientific documents. Your task is to answer the question STRICTLY BASED on the provided context.
+            Mandatory rules:
+            1. NO HALLUCINATION: Only use information present in the context. Do not add outside knowledge, do not explain or conclude if the context does not explicitly state it.
+            2. EXACT DATA MATCHING (CRITICAL):
+               - When the context lists items (e.g., A, B, C have values X, Y, Z respectively), YOU MUST match the exact object with its corresponding data. Absolutely do not swap data between objects.
+               - Do not arbitrarily round numbers.
+            3. HANDLING CONFLICTING DATA:
+               - If the context has multiple different values for the same object in different paragraphs, prioritize extracting exactly according to the phrase/sentence containing that classification, or clearly state both if necessary. DO NOT arbitrarily merge data.
+            4. ONLY EXTRACT AVAILABLE PROPOSALS: If the context mentions a solution/proposal, only state exactly what is written, do not invent more.
+            5. HANDLING VAGUE/KEYWORD QUESTIONS: If the user's input is just a few short keywords (e.g., location name, crop name) instead of a clear question, summarize the most important information the context mentions about those keywords.
+            6. HANDLING MISSING INFORMATION: If there is not enough information to answer, explicitly state: 'The context does not provide enough information on this issue.'
+            7. FORMAT: The answer should be concise, structurally clear (statement -> specific cited data -> proposal if any).
 
-            Ngữ cảnh: {context}"""
+            Context: {context}"""
 
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -67,32 +64,32 @@ class AgricultureRAGSkill(BaseSkill):
             ]
         )
 
-        # Khởi tạo RAG Chain nội bộ cho Skill này
+        # Initialize internal RAG Chain for this Skill
         document_qa_chain = create_stuff_documents_chain(llm, prompt)
         self.qa_chain = create_retrieval_chain(self.retriever, document_qa_chain)
 
     def _load_all_docs_from_db(self) -> list[Document]:
-        """Utility lấy toàn bộ chunks từ DB để build BM25 Index."""
-        print("Đang nạp dữ liệu từ DB cho BM25 Retriever...")
+        """Utility to get all chunks from DB to build BM25 Index."""
+        print("Loading data from DB for BM25 Retriever...")
         try:
-            # Lấy raw vector store để truy cập PGVector internals
+            # Get raw vector store to access PGVector internals
             vector_store = self.vector_store_provider.get_raw_vector_store()
 
             with vector_store._make_session() as session:
                 records = session.query(vector_store.EmbeddingStore).all()
-                print(f"Truy vấn DB thành công, nạp {len(records)} bản ghi cho BM25.")
+                print(f"DB query successful, loaded {len(records)} records for BM25.")
                 return [
                     Document(page_content=r.document, metadata=r.cmetadata)
                     for r in records
                 ]
         except Exception as e:
-            print(f"Cảnh báo: Không thể nạp dữ liệu cho BM25: {e}")
+            print(f"Warning: Could not load data for BM25: {e}")
             return []
 
     def run(self, query: str, **kwargs) -> SkillResult:
         """
-        Thực thi RAG Chain và capture metadata (sources, tokens, actions).
-        Đã FIX lỗi Double Fetch: Chỉ gọi qa_chain 1 lần duy nhất.
+        Execute RAG Chain and capture metadata (sources, tokens, actions).
+        Only calls qa_chain once.
         """
         agent_actions = []
         tokens_used: Optional[Dict[str, int]] = None
@@ -101,9 +98,8 @@ class AgricultureRAGSkill(BaseSkill):
         try:
             agent_actions.append(f"Invoking QA Chain for query: '{query[:50]}...'")
 
-            # ===== STEP 1: GỌI QA CHAIN NGAY LẬP TỨC (Chỉ 1 lần gọi DB) =====
+            # ===== STEP 1: INVOKE QA CHAIN (1 DB call) =====
             with get_openai_callback() as cb:
-                # Lệnh này sẽ tự động search DB và sinh câu trả lời
                 result = self.qa_chain.invoke({"input": query})
 
                 if cb.total_tokens > 0:
@@ -117,24 +113,23 @@ class AgricultureRAGSkill(BaseSkill):
                         f"(prompt: {cb.prompt_tokens}, completion: {cb.completion_tokens})"
                     )
 
-            # ===== STEP 2: LẤY CÂU TRẢ LỜI VÀ TÀI LIỆU TỪ RESULT =====
-            final_answer = result.get("answer", "Không có câu trả lời.")
-            # create_retrieval_chain luôn trả về tài liệu tìm được trong key "context"
+            # ===== STEP 2: GET ANSWER AND DOCS FROM RESULT =====
+            final_answer = result.get("answer", "No answer found.")
             retrieved_docs = result.get("context", [])
 
             agent_actions.append(
                 f"Retrieved {len(retrieved_docs)} documents from vector store internally."
             )
 
-            # ===== STEP 3: TRÍCH XUẤT METADATA =====
+            # ===== STEP 3: EXTRACT METADATA =====
             for idx, doc in enumerate(retrieved_docs[:5]):  # Top 5 docs
                 metadata = doc.metadata or {}
                 source_obj = {
                     "doc_index": idx,
                     "file_name": metadata.get("file_name", "Unknown"),
                     "hierarchy": metadata.get("document_hierarchy", "Unknown"),
-                    "content_snippet": doc.page_content[:200],  # Dành cho UI
-                    "full_content": doc.page_content,  # Dành cho Evaluation
+                    "content_snippet": doc.page_content[:200],  # For UI
+                    "full_content": doc.page_content,  # For Evaluation
                     "chunk_id": metadata.get("chunk_id", ""),
                 }
                 sources.append(source_obj)
@@ -155,7 +150,7 @@ class AgricultureRAGSkill(BaseSkill):
             )
 
         except Exception as e:
-            error_msg = f"[Lỗi truy xuất hệ thống: {str(e)}]"
+            error_msg = f"[System retrieval error: {str(e)}]"
             import traceback
 
             agent_actions.append(f"Error occurred: {str(e)}")
