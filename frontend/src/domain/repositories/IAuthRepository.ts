@@ -1,5 +1,5 @@
 // src/domain/repositories/IAuthRepository.ts
-import type { LoginRequest, UserProfile } from '../models/Auth';
+import type { LoginRequest, UserProfile } from '../../models/Auth';
 
 export interface TokenResponse {
   access_token: string;

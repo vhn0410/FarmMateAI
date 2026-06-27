@@ -1,8 +1,8 @@
 // src/application/hooks/useAuthActions.ts
 import { useState } from 'react';
-import { AuthService } from '../../infrastructure/services/AuthService';
+import { AuthService } from '../api/authService';
 import { useAuthStore } from '../store/useAuthStore';
-import type { LoginRequest } from '../../domain/models/Auth';
+import type { LoginRequest } from '../models/Auth';
 
 const authService = new AuthService();
 
@@ -29,7 +29,7 @@ export const useAuthActions = () => {
       return true;
     } catch (err: any) {
       localStorage.removeItem('access_token');
-      setError(err.response?.data?.detail?.[0]?.msg || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      setError(err.response?.data?.detail?.[0]?.msg || 'Login failed. Please try again.');
       return false;
     } finally {
       setIsLoading(false);

@@ -1,7 +1,7 @@
 // src/infrastructure/services/AuthService.ts
-import type { IAuthRepository, TokenResponse } from '../../domain/repositories/IAuthRepository';
-import type { LoginRequest, UserProfile } from '../../domain/models/Auth';
-import { axiosClient } from '../api/axiosClient';
+import type { IAuthRepository, TokenResponse } from '../domain/repositories/IAuthRepository';
+import type { LoginRequest, UserProfile } from '../models/Auth';
+import { axiosClient } from './axiosClient';
 
 export class AuthService implements IAuthRepository {
   async login(credentials: LoginRequest): Promise<TokenResponse> {
