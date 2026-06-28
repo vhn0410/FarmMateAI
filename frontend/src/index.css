@@ -2,3 +2,25 @@
 @plugin "@tailwindcss/typography";
 @source "../node_modules/reachat";
 @source "../node_modules/reablocks";
+
+/* Hide desktop-only sidebar on mobile */
+.desktop-sidebar {
+  display: flex;
+}
+@media (max-width: 767px) {
+  .desktop-sidebar {
+    display: none !important;
+  }
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+}

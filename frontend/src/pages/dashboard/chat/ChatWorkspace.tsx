@@ -78,6 +78,7 @@ export const ChatWorkspace: React.FC = () => {
   const { messages, isLoading: isChatLoading, sendMessage, sessionId, loadConversation, startNewChat } = useChatbot();
   const { conversations, isLoading: isNavLoading } = useConversations();
   const [input, setInput] = useState('');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -92,36 +93,70 @@ export const ChatWorkspace: React.FC = () => {
     setInput('');
   };
 
-  // Group conversations by a generic "Recent" or by date if needed. 
-  // For simplicity, we just list them.
-
   return (
-    <div className="flex-1 flex bg-[#E8F1FF] font-sans">
+    <div className="flex-1 flex bg-[#E8F1FF] font-sans relative w-full h-full">
       
-      {/* ---------------- MIDDLE SIDEBAR: CHATS LIST ---------------- */}
-      <aside className="w-[320px] bg-white flex flex-col shrink-0 border-r border-gray-100 shadow-sm z-10 m-2 rounded-2xl overflow-hidden">
-        
+      {/* Mobile overlay */}
+      <div 
+        className={`md:hidden fixed inset-0 bg-gray-900/20 z-30 transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setIsMobileSidebarOpen(false)} 
+      />
+
+      {/* ---------------- DESKTOP SIDEBAR: always visible, not toggleable ---------------- */}
+      <aside
+        className="desktop-sidebar flex-col w-[340px] shrink-0 bg-white m-2 rounded-2xl shadow-sm overflow-hidden"
+      >
         <div className="p-5 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-xl font-bold text-blue-600">Chats</h2>
+          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
           <button 
-            onClick={startNewChat}
+            onClick={() => startNewChat()}
             className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+            title="New chat"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
           </button>
         </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+          {conversations.map(conv => {
+            const isActive = sessionId === conv.id;
+            return (
+              <button
+                key={conv.id}
+                onClick={() => loadConversation(conv.id)}
+                className={`w-full text-left p-3 rounded-xl transition-all ${
+                  isActive
+                    ? 'bg-blue-50 border border-blue-100 shadow-sm'
+                    : 'hover:bg-gray-50 border border-transparent'
+                }`}
+              >
+                <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
+                  {conv.title}
+                </h3>
+                <p className="text-xs text-gray-400 line-clamp-2">
+                  Click to continue chatting.
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
 
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            <input 
-              type="text" 
-              placeholder="Search.." 
-              className="w-full bg-gray-50 pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-shadow"
-            />
+      {/* ---------------- MOBILE SIDEBAR: toggleable drawer ---------------- */}
+      <aside className={`
+        md:hidden absolute inset-y-0 left-0 max-w-xs w-4/5 bg-white flex flex-col shrink-0 shadow-2xl z-40 overflow-hidden transition-transform duration-300 ease-in-out
+        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="p-5 flex items-center justify-between border-b border-gray-100">
+          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
+          <div className="flex gap-2">
+            <button onClick={() => setIsMobileSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <button onClick={() => { startNewChat(); setIsMobileSidebarOpen(false); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+            </button>
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
           {isNavLoading ? (
             <div className="p-4 text-center text-sm text-gray-500">Loading chats...</div>
@@ -131,24 +166,17 @@ export const ChatWorkspace: React.FC = () => {
             conversations.map((conv) => {
               const isActive = sessionId === conv.id;
               return (
-                <button 
+                <button
                   key={conv.id}
-                  onClick={() => loadConversation(conv.id)}
+                  onClick={() => { loadConversation(conv.id); setIsMobileSidebarOpen(false); }}
                   className={`w-full text-left p-3 rounded-xl transition-all ${
-                    isActive 
-                      ? 'bg-blue-50 border border-blue-100 shadow-sm' 
+                    isActive
+                      ? 'bg-blue-50 border border-blue-100 shadow-sm'
                       : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className={`font-semibold text-sm truncate pr-2 ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>
-                      {conv.title}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                    {/* Placeholder snippet since backend might not return last message */}
-                    Click to view the conversation details and continue chatting.
-                  </p>
+                  <h4 className={`font-semibold text-sm truncate ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>{conv.title}</h4>
+                  <p className="text-xs text-gray-500 line-clamp-2 mt-1">Click to continue chatting.</p>
                 </button>
               );
             })
@@ -157,14 +185,35 @@ export const ChatWorkspace: React.FC = () => {
       </aside>
 
       {/* ---------------- MAIN CHAT AREA ---------------- */}
-      <section className="flex-1 flex flex-col min-w-0 relative my-2 mr-2 bg-transparent">
+      <section className="flex-1 flex flex-col min-w-0 relative my-2 mr-2 bg-transparent transition-all duration-300">
         
         {/* HEADER */}
         <header className="flex h-16 shrink-0 items-center justify-between px-6 z-10">
-          <h2 className="text-xl font-bold text-gray-800">
-            {sessionId ? conversations.find(c => c.id === sessionId)?.title || 'Current Chat' : 'New Chat'}
-          </h2>
+          {/* Left: spacer on mobile for the fixed hamburger, title on desktop */}
           <div className="flex items-center gap-3">
+            <span className="md:hidden w-10" /> {/* spacer so title doesn't hide behind hamburger */}
+            <h2 className="text-xl font-bold text-gray-800">
+              {sessionId ? conversations.find(c => c.id === sessionId)?.title || 'Current Chat' : 'New Chat'}
+            </h2>
+          </div>
+          {/* Right: actions */}
+          <div className="flex items-center gap-2">
+            {/* Mobile-only: open conversations drawer — placed on RIGHT side, away from main menu */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="md:hidden relative p-2 text-gray-500 hover:bg-white hover:text-blue-600 rounded-xl transition-colors bg-white/70 shadow-sm"
+              title="Conversations"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              {/* Badge showing conversation count */}
+              {conversations.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {conversations.length > 9 ? '9+' : conversations.length}
+                </span>
+              )}
+            </button>
             <button className="p-2 text-gray-500 hover:bg-white rounded-full transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
             <button className="p-2 text-gray-500 hover:bg-white rounded-full transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg></button>
           </div>
