@@ -30,4 +30,8 @@ export class ConversationService {
     const response = await axiosClient.get<ConversationDetailResponse>(`/api/v1/conversations/${id}/messages`);
     return response.data;
   }
+
+  async deleteConversation(id: string): Promise<void> {
+    await axiosClient.delete(`/api/v1/conversations/${id}`);
+  }
 }

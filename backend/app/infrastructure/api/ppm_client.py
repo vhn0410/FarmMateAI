@@ -83,6 +83,10 @@ class PPMClient:
             proj_id = proj.get("id")
             if not proj_id:
                 continue
+            
+            # Bỏ qua các dự án là template (tránh trùng lặp task)
+            if proj.get("isTemplate") is True:
+                continue
                 
             tasks = self.get_project_tasks(token, proj_id)
             for t in tasks:

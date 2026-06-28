@@ -76,7 +76,7 @@ const MessageContent: React.FC<{ content: string; onAction: (query: string) => v
 
 export const ChatWorkspace: React.FC = () => {
   const { messages, isLoading: isChatLoading, sendMessage, sessionId, loadConversation, startNewChat } = useChatbot();
-  const { conversations, isLoading: isNavLoading } = useConversations();
+  const { conversations, isLoading: isNavLoading, deleteConversation } = useConversations();
   const [input, setInput] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
@@ -91,6 +91,17 @@ export const ChatWorkspace: React.FC = () => {
     if (!input.trim() || isChatLoading) return;
     sendMessage(input);
     setInput('');
+  };
+
+  const handleDelete = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) {
+      return;
+    }
+    const success = await deleteConversation(convId);
+    if (success && sessionId === convId) {
+      startNewChat();
+    }
   };
 
   return (
@@ -120,22 +131,31 @@ export const ChatWorkspace: React.FC = () => {
           {conversations.map(conv => {
             const isActive = sessionId === conv.id;
             return (
-              <button
+              <div
                 key={conv.id}
                 onClick={() => loadConversation(conv.id)}
-                className={`w-full text-left p-3 rounded-xl transition-all ${
+                className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
                   isActive
                     ? 'bg-blue-50 border border-blue-100 shadow-sm'
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
-                <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
-                  {conv.title}
-                </h3>
-                <p className="text-xs text-gray-400 line-clamp-2">
-                  Click to continue chatting.
-                </p>
-              </button>
+                <div className="flex-1 min-w-0 pr-2">
+                  <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
+                    {conv.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 line-clamp-2">
+                    Click to continue chatting.
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => handleDelete(e, conv.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  title="Delete conversation"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
             );
           })}
         </div>
@@ -166,18 +186,27 @@ export const ChatWorkspace: React.FC = () => {
             conversations.map((conv) => {
               const isActive = sessionId === conv.id;
               return (
-                <button
+                <div
                   key={conv.id}
                   onClick={() => { loadConversation(conv.id); setIsMobileSidebarOpen(false); }}
-                  className={`w-full text-left p-3 rounded-xl transition-all ${
+                  className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
                     isActive
                       ? 'bg-blue-50 border border-blue-100 shadow-sm'
                       : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
-                  <h4 className={`font-semibold text-sm truncate ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>{conv.title}</h4>
-                  <p className="text-xs text-gray-500 line-clamp-2 mt-1">Click to continue chatting.</p>
-                </button>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <h4 className={`font-semibold text-sm truncate ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>{conv.title}</h4>
+                    <p className="text-xs text-gray-500 line-clamp-2 mt-1">Click to continue chatting.</p>
+                  </div>
+                  <button
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                    title="Delete conversation"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
               );
             })
           )}

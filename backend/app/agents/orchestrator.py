@@ -38,13 +38,15 @@ def get_chat_agent():
 
         2. YOU MUST translate the data into PROFESSIONAL KEYWORDS before searching:
 
-           - If pH < 5 -> Translate to "acidic soil", "alum soil", "soil improvement".
+           - If pH < 5 -> Translate to "đất phèn", "đất chua", "cải tạo đất".
 
-           - If N, P, K are low -> Translate to "nutrient deficiency", "basal fertilizer", "top dressing".
+           - If N, P, K are low -> Translate to "thiếu dinh dưỡng", "bón lót", "bón thúc".
 
-        3. CORRECT query example: "How to apply top dressing for tillering rice on acidic soil"
+        3. YOU MUST translate the query into VIETNAMESE before searching, because the database documents are in Vietnamese!
 
-        4. INCORRECT query example: "How to fertilize rice pH 4.5 N 120"
+        4. CORRECT query example: "Cách bón phân thúc cho lúa đẻ nhánh trên đất phèn"
+
+        5. INCORRECT query example: "How to fertilize rice pH 4.5 N 120"
 
         """
         result: SkillResult = rag_skill.run(query)
@@ -148,22 +150,85 @@ def get_chat_agent():
                 if not active_tasks:
                     return f"There are currently no tasks matching project '{project_name}' with status ({status_str})."
 
+            # Loại bỏ các dự án mẫu (template) bằng cách kiểm tra:
+            # Nếu TOÀN BỘ task trong một project đều KHÔNG CÓ startDate và startDateActual, thì đó là template
+            project_has_dates = {}
+            for t in active_tasks:
+                pid = t.get("projectId")
+                if t.get("startDateActual") or t.get("startDate"):
+                    project_has_dates[pid] = True
+            
+            # Lọc các task thuộc về dự án thực tế
+            active_tasks = [t for t in active_tasks if project_has_dates.get(t.get("projectId"))]
+            
+            # Sắp xếp các task theo Tên Dự Án trước, sau đó mới đến 'index' để hiển thị đúng thứ tự từng dự án
+            active_tasks.sort(key=lambda t: (t.get("projectName", "").strip().lower(), t.get("index", 9999)))
+
+            # Xác định Current Task và Next Task cho từng dự án
+            project_stages = {}
+            for t in active_tasks:
+                proj = t.get("projectName", "Unnamed Project").replace('\n', ' ').strip()
+                if proj not in project_stages:
+                    project_stages[proj] = {"current": None, "next": None, "open_tasks": []}
+                
+                status_val = t.get("status", "UNKNOWN")
+                task_name = t.get("name", "Unknown").replace('\n', ' ').strip()
+                
+                if status_val == "IN_PROGRESS":
+                    project_stages[proj]["current"] = task_name
+                elif status_val == "OPEN":
+                    project_stages[proj]["open_tasks"].append(task_name)
+                    
+            summary_header = "**Giai đoạn sinh trưởng hiện tại (Current Growth Stage):**\n"
+            for proj, data in project_stages.items():
+                current = data["current"]
+                if not current and data["open_tasks"]:
+                    # Nếu không có task IN_PROGRESS, lấy task OPEN đầu tiên làm current
+                    current = data["open_tasks"][0]
+                    next_task = data["open_tasks"][1] if len(data["open_tasks"]) > 1 else "None"
+                else:
+                    next_task = data["open_tasks"][0] if data["open_tasks"] else "None"
+                
+                summary_header += f"- Dự án '{proj}': Đang thực hiện [{current or 'None'}]. Tiếp theo: [{next_task}].\n"
+            
+            summary_header += "\n**Chi tiết tất cả các Task:**\n"
+
             result_list = ["| Task Name | Project Name | Status | Start Date |", "|---|---|---|---|"]
+            
+            # Khởi tạo bộ đếm trạng thái để giúp LLM vẽ biểu đồ chính xác
+            status_counts = {"OPEN": 0, "IN_PROGRESS": 0, "DONE": 0}
+            
             for t in active_tasks:
                 task_name = t.get("name", "Unknown").replace('\n', ' ').strip()
                 proj_name = t.get("projectName", "Unnamed Project").replace('\n', ' ').strip()
                 start_date = t.get("startDateActual", t.get("startDate", ""))
+                status_val = t.get("status", "UNKNOWN")
+                
+                # Tăng biến đếm
+                if status_val in status_counts:
+                    status_counts[status_val] += 1
+                else:
+                    status_counts[status_val] = 1
+                    
                 if start_date:
                     try:
-                        # Extract just the date part if it's an ISO string
                         start_date = start_date.split('T')[0]
                     except:
                         pass
-                t_status = t.get("status", "Unknown")
-                
-                result_list.append(f"| {task_name} | {proj_name} | {t_status} | {start_date} |")
-                
-            return f"NOTE FOR AI: This is the EXACT markdown table of ALL tasks. Do NOT modify, deduplicate, or truncate this table. Copy it EXACTLY as is into your response.\n\n" + "\n".join(result_list)
+                else:
+                    start_date = "None"
+                    
+                result_list.append(f"| {task_name} | {proj_name} | {status_val} | {start_date} |")
+
+            final_output = summary_header + "\n".join(result_list)
+            
+            # Thêm phần thống kê chính xác để LLM không đếm sai
+            summary = "\n\n**Thống kê số lượng Task (Sử dụng số liệu này để vẽ biểu đồ):**\n"
+            for k, v in status_counts.items():
+                if v > 0:
+                    summary += f"- {k}: {v}\n"
+                    
+            return final_output + summary
             
         except Exception as e:
             return f"System error while fetching growth stage data: {str(e)}"
@@ -197,20 +262,23 @@ def get_chat_agent():
                 PROCESSING FRAMEWORK (STRICTLY FOLLOW):
                 
                 Step 1 - CLASSIFY QUESTION & TOOL SELECTION (CRITICAL):
-                - If the user asks for comprehensive advice ("What should I do today?", "Give me a full farm report"): You may call multiple tools (IoT, Weather, Growth Stage, RAG).
-                - If the user asks to check a SPECIFIC STATION (e.g. "Kiểm tra dữ liệu Trạm..."): ONLY call `Get_IoT_Sensor_Data` (and optionally `Get_Weather_Information`). DO NOT call `Get_Current_Growth_Stage` or `Agriculture_Technical_Advice` unless explicitly asked.
-                - If the user asks theory/general knowledge: STRICTLY call `Agriculture_Technical_Advice` ONLY.
+                - If the user asks for ADVICE or FARMING INSTRUCTIONS (e.g., "What should I do today?", "How to fertilize?", "Tư vấn bón phân"): You MUST call `Get_Current_Growth_Stage` (to know the farm's current step), call `Get_IoT_Sensor_Data` and `Get_Weather_Information` for environmental context, and finally call `Agriculture_Technical_Advice` (RAG) to get the actual knowledge.
+                   + CRITICAL: When calling `Get_Current_Growth_Stage`, if the user mentions a specific crop or project (like "lúa" or "cá"), you MUST pass it into the `project_name` parameter so it filters exactly that crop.
+                - If the user ONLY asks to check data without asking for advice (e.g. "Kiểm tra dữ liệu Trạm..."): ONLY call `Get_IoT_Sensor_Data` (and optionally `Get_Weather_Information`). DO NOT call `Get_Current_Growth_Stage` or `Agriculture_Technical_Advice` unless explicitly asked.
+                - If the user asks purely theoretical knowledge not tied to their farm: STRICTLY call `Agriculture_Technical_Advice` ONLY.
                 
                 Step 2 - STATION HANDLING (If IoT or Weather is needed):
                 - Growth stage (PPM) is GLOBAL. No station ID needed.
                 - IoT and Weather are PER-STATION. If the user has MULTIPLE STATIONS and hasn't specified which one, STOP and politely ask: "Which station would you like to check?". If specified, extract 'station_id' and 'location'.
                    + IMPORTANT: When extracting 'location' for the Weather tool, remove prefixes like "Khí tượng" or "Lúa" and use only the city/province name (e.g., "Vĩnh Long").
                    + CRITICAL: When you ask the user to choose a station, you MUST format each station as an ACTION LINK so the user can click it.
-                   + Example: `[Trạm Khí tượng Vĩnh Long](#action:Kiểm_tra_dữ_liệu_Trạm_Khí_tượng_Vĩnh_Long)`
+                   + IMPORTANT: If the user asked for ADVICE (e.g. "how to fertilize"), the action link MUST preserve that intent so you remember it in the next turn! Do NOT just use "Kiểm tra dữ liệu".
+                   + Example (just checking): `[Trạm Khí tượng Vĩnh Long](#action:Kiểm_tra_dữ_liệu_Trạm_Khí_tượng_Vĩnh_Long)`
+                   + Example (asking for fertilizer advice): `[Trạm Khí tượng Vĩnh Long](#action:Tư_vấn_bón_phân_dựa_trên_dữ_liệu_Trạm_Khí_tượng_Vĩnh_Long)`
 
-                Step 3 - TRANSFORMATION & RAG QUERY (Only if comprehensive advice is requested):
-                - Combine GROWTH STAGE and SOIL CONDITION to translate into PROFESSIONAL KEYWORDS.
-                - You MUST call the `Agriculture_Technical_Advice` tool using those keywords. Do this EVEN IF the Weather or IoT tools failed or returned missing data.
+                Step 3 - TRANSFORMATION & RAG QUERY (Only if ADVICE is requested):
+                - Combine GROWTH STAGE (from PPM), WEATHER, and SOIL CONDITION (from IoT) to translate into PROFESSIONAL KEYWORDS for your RAG query.
+                - You MUST call the `Agriculture_Technical_Advice` tool using those keywords to find the exact technique. Do this EVEN IF some tools failed or returned missing data.
 
                 Step 4 - SYNTHESIZE & ADVISE:
                 - Always answer the user in Vietnamese in a natural, helpful consultant tone.
@@ -227,6 +295,7 @@ def get_chat_agent():
                 
                 Step 5 - VISUALIZATION & FORMATTING (CRITICAL):
                 - For mixed sensor data (like pH, Temperature, Moisture, NPK), you MUST use a Markdown Table. Do NOT use charts for these.
+                - When displaying the list of PPM Tasks, YOU MUST render them EXACTLY as a Markdown Table with all columns preserved (Task Name, Project Name, Status, Start Date). Do NOT skip any tasks, including DONE tasks. Do NOT convert the table into a text list!
                 - For PPM Task Summaries (e.g. counting how many tasks are OPEN, IN_PROGRESS, DONE), you MUST output a Pie Chart to visualize the distribution.
                 - To render a chart, output a markdown code block exactly like this:
                 ```chart

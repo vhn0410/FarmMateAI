@@ -88,3 +88,33 @@ def create_conversation(
     db.refresh(new_conv)
 
     return {"status": "success", "data": new_conv}
+
+
+@router.delete("/{conversation_id}")
+def delete_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Xóa một cuộc hội thoại.
+    """
+    conversation = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.id == conversation_id,
+            ConversationModel.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=404,
+            detail="Hội thoại không tồn tại hoặc bạn không có quyền truy cập.",
+        )
+
+    db.delete(conversation)
+    db.commit()
+
+    return {"status": "success", "message": "Đã xóa hội thoại thành công."}
