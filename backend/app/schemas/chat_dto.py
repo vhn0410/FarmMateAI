@@ -10,6 +10,9 @@ class ChatRequest(BaseModel):
     session_id: str = Field(
         default=None, description="Dùng để lưu lịch sử chat sau này"
     )
+    file_ids: Optional[List[str]] = Field(
+        default=None, description="Danh sách các file_id để lọc nội dung chat"
+    )
 
 
 class SourceDocument(BaseModel):

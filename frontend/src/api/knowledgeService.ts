@@ -3,8 +3,6 @@ import { axiosClient } from './axiosClient';
 export interface KnowledgeFile {
   id: string;
   name: string;
-  webViewLink?: string;
-  webContentLink?: string;
 }
 
 export const knowledgeService = {
@@ -21,5 +19,8 @@ export const knowledgeService = {
       }
     });
     return response.data.data;
+  },
+  deleteFile: async (fileId: string): Promise<void> => {
+    await axiosClient.delete(`/api/v1/documents/knowledge-base/files/${fileId}`);
   }
 };

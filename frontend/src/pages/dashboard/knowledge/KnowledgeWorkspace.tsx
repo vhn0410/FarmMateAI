@@ -8,10 +8,11 @@ import remarkGfm from 'remark-gfm';
 export const KnowledgeWorkspace: React.FC = () => {
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   
   // Reuse existing chatbot hook for the chat UI
-  const { messages, isLoading: isChatLoading, sendMessage } = useChatbot();
+  const { messages, isLoading: isChatLoading, sendMessage, sendDocumentMessage } = useChatbot();
   const [chatInput, setChatInput] = useState('');
 
   // Dragging states
@@ -43,6 +44,7 @@ export const KnowledgeWorkspace: React.FC = () => {
   }, [isDragging]);
 
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchFiles = async () => {
@@ -81,17 +83,48 @@ export const KnowledgeWorkspace: React.FC = () => {
     }
   };
 
+  const handleDeleteFile = async (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this document? This action cannot be undone.")) {
+      return;
+    }
+    
+    setDeletingId(fileId);
+    try {
+      await knowledgeService.deleteFile(fileId);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
+      if (selectedFile?.id === fileId) {
+        setSelectedFile(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete file", error);
+      alert("Failed to delete file.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleToggleFile = (e: React.ChangeEvent<HTMLInputElement>, fileId: string) => {
+    if (e.target.checked) {
+      setSelectedFileIds(prev => [...prev, fileId]);
+    } else {
+      setSelectedFileIds(prev => prev.filter(id => id !== fileId));
+    }
+  };
+
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
     
-    // Pass the document context to the chat!
-    let fullMessage = chatInput;
-    if (selectedFile) {
-      fullMessage = `[Document Context: ${selectedFile.name}]\n${chatInput}`;
+    // Nếu có chọn file để lọc chat, dùng API chuyên dụng (RAG)
+    if (selectedFileIds.length > 0) {
+      if (sendDocumentMessage) {
+        sendDocumentMessage(chatInput, selectedFileIds);
+      }
+    } else {
+      // Nếu không chọn file nào, chat bình thường bằng Agent
+      sendMessage(chatInput);
     }
-    
-    sendMessage(fullMessage);
     setChatInput('');
   };
 
@@ -136,24 +169,49 @@ export const KnowledgeWorkspace: React.FC = () => {
             <div className="text-center text-sm text-gray-500 py-4">No PDF files found.</div>
           ) : (
             files.map(file => (
-              <button
+              <div 
                 key={file.id}
-                onClick={() => setSelectedFile(file)}
-                className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 ${
+                className={`w-full flex items-center p-3 rounded-xl transition-all gap-3 ${
                   selectedFile?.id === file.id
                     ? 'bg-blue-50 border border-blue-200 shadow-sm'
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
-                <div className={`mt-0.5 ${selectedFile?.id === file.id ? 'text-blue-600' : 'text-gray-400'}`}>
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" /></svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className={`font-medium text-sm truncate ${selectedFile?.id === file.id ? 'text-blue-800' : 'text-gray-700'}`}>
-                    {file.name}
-                  </h3>
-                </div>
-              </button>
+                {/* Checkbox để chọn file chat */}
+                <input 
+                  type="checkbox"
+                  checked={selectedFileIds.includes(file.id)}
+                  onChange={(e) => handleToggleFile(e, file.id)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  title="Include in chat filter"
+                />
+                
+                <button
+                  onClick={() => setSelectedFile(file)}
+                  className="flex-1 flex items-start gap-3 min-w-0 text-left"
+                >
+                  <div className={`mt-0.5 ${selectedFile?.id === file.id ? 'text-blue-600' : 'text-gray-400'}`}>
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`font-medium text-sm truncate ${selectedFile?.id === file.id ? 'text-blue-800' : 'text-gray-700'}`}>
+                      {file.name}
+                    </h3>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => handleDeleteFile(e, file.id)}
+                  disabled={deletingId === file.id}
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  title="Delete document"
+                >
+                  {deletingId === file.id ? (
+                    <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  )}
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -219,13 +277,13 @@ export const KnowledgeWorkspace: React.FC = () => {
             </div>
           ) : (
             messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm text-[13px] ${
-                  msg.sender === 'user' 
-                    ? 'bg-blue-600 text-white rounded-tr-none' 
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm text-[13px] prose prose-sm max-w-none ${
+                  msg.role === 'user' 
+                    ? 'bg-blue-600 text-white rounded-tr-none prose-invert' 
                     : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
                 }`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} className={`prose prose-sm max-w-none ${msg.sender === 'user' ? 'prose-invert' : ''}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {msg.content}
                   </ReactMarkdown>
                 </div>

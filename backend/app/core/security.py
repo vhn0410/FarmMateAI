@@ -22,7 +22,7 @@ def get_current_user(
 
     # 2. Tìm user trong CSDL nội bộ
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    
+
     # 3. KỸ THUẬT JIT PROVISIONING (SHADOW USER)
     if not user:
         print("DB execute.......................................")

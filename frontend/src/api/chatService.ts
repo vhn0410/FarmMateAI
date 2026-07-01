@@ -80,4 +80,64 @@ export class ChatService {
       }
     }
   }
+
+  // Stream dành riêng cho Document Chat
+  async *sendDocumentStreamMessage(request: ChatRequest, fileIds: string[]): AsyncGenerator<StreamEvent, void, unknown> {
+    const token = localStorage.getItem('access_token');
+    const baseUrl = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : 'http://127.0.0.1:8000';
+    
+    // Gắn thêm file_ids vào request
+    const payload = {
+      ...request,
+      file_ids: fileIds
+    };
+
+    const response = await fetch(`${baseUrl}/api/v1/chat/document/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error(`Streaming failed: ${response.status}`);
+    if (!response.body) throw new Error('ReadableStream not supported.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/}{/g, '}\n{');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        let cleanLine = line.trim();
+        if (!cleanLine) continue;
+        if (cleanLine.startsWith('data: ')) {
+          cleanLine = cleanLine.substring(6).trim();
+        }
+        if (cleanLine === '[DONE]') return;
+        try {
+          const data = JSON.parse(cleanLine) as StreamEvent;
+          yield data;
+        } catch (e) {
+          console.error('JSON Parse error:', e, cleanLine);
+        }
+      }
+    }
+    
+    if (buffer.trim()) {
+      let cleanLine = buffer.replace(/^data:\s*/, '').trim();
+      if (cleanLine && cleanLine !== '[DONE]') {
+        try { yield JSON.parse(cleanLine); } catch (e) {}
+      }
+    }
+  }
 }

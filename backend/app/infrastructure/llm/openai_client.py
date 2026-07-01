@@ -30,9 +30,14 @@ class OpenAIClient(ILLMProvider):
         Khởi tạo LLM Client dùng chung cho toàn hệ thống.
         Mặc định temperature = 0.0 để câu trả lời mang tính deterministic (chính xác, không sáng tạo thêm).
         """
-        return ChatOpenAI(
-            model=self._model,
-            temperature=self._temperature,
-            api_key=self._api_key,
-            streaming=self._streaming,
-        )
+        kwargs = {
+            "model": self._model,
+            "temperature": self._temperature,
+            "api_key": self._api_key,
+            "streaming": self._streaming,
+        }
+        
+        if settings.openai_api_base:
+            kwargs["base_url"] = settings.openai_api_base
+            
+        return ChatOpenAI(**kwargs)
