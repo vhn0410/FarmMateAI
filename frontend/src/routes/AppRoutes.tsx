@@ -27,8 +27,13 @@ export const router = createBrowserRouter([
             element: <ChatWorkspace />,
           },
           {
-            path: '/knowledge',
-            element: <KnowledgeWorkspace />,
+            element: <ProtectedRoute requireAdmin={true} />,
+            children: [
+              {
+                path: '/knowledge',
+                element: <KnowledgeWorkspace />,
+              },
+            ],
           },
         ]
       }

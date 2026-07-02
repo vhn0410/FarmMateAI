@@ -17,6 +17,7 @@ def get_chat_use_case(db: Session = Depends(get_db)):
     return ChatUseCase(llm_provider=llm_provider, db=db)
 
 
+
 @router.post("/", response_model=ChatResponse)
 async def chat_with_farmmate(
     request: ChatRequest,
@@ -48,18 +49,4 @@ async def stream_chat_with_farmmate(
         media_type="text/event-stream",  # Định dạng bắt buộc để trình duyệt hiểu đây là luồng SSE
     )
 
-@router.post("/document/stream")
-async def stream_document_chat(
-    request: ChatRequest,
-    use_case: ChatUseCase = Depends(get_chat_use_case),
-    current_user: dict = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme),
-):
-    """
-    API Streaming dành riêng cho RAG trên tài liệu cụ thể.
-    Bỏ qua Agent, chỉ dùng LCEL RetrivalQA.
-    """
-    return StreamingResponse(
-        use_case.stream_document_chat(request, current_user, token),
-        media_type="text/event-stream",
-    )
+

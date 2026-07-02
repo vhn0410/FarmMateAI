@@ -26,3 +26,6 @@ def get_auth_provider(db: Session = Depends(get_db)) -> IAuthProvider:
         
     else:
         raise ValueError(f"Chưa cấu hình hoặc cấu hình sai AUTH_MODE: {settings.auth_mode}")
+
+def get_user_repository(db: Session = Depends(get_db)) -> SqlAlchemyUserRepository:
+    return SqlAlchemyUserRepository(db)

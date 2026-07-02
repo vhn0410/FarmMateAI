@@ -41,6 +41,19 @@ class LocalFileSystemProvider(IDocumentProvider):
         """Lấy đường dẫn tuyệt đối của một file PDF."""
         return self.pdf_dir / file_name
 
+    def get_md_path(self, file_name: str) -> Path:
+        """Lấy đường dẫn tuyệt đối của một file MD."""
+        stem = Path(file_name).stem
+        md_file = self.md_dir / f"{stem}.md"
+        if md_file.exists():
+            return md_file
+        
+        processed_file = self.processed_dir / f"{stem}.md"
+        if processed_file.exists():
+            return processed_file
+            
+        return md_file
+
     def save_uploaded_pdf(self, file_name: str, file_bytes: bytes) -> str:
         """Lưu file PDF được upload vào thư mục cục bộ."""
         # Sanitize tên file để tránh lỗi thư mục

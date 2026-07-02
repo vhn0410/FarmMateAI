@@ -22,5 +22,19 @@ export const knowledgeService = {
   },
   deleteFile: async (fileId: string): Promise<void> => {
     await axiosClient.delete(`/api/v1/documents/knowledge-base/files/${fileId}`);
+  },
+  getFileMarkdown: async (fileId: string): Promise<string> => {
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/markdown`);
+    return response.data.data;
+  },
+  getFileChunks: async (fileId: string): Promise<any[]> => {
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/chunks`);
+    return response.data.data;
+  },
+  getFileStreamUrl: async (fileId: string): Promise<string> => {
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/stream`, {
+      responseType: 'blob'
+    });
+    return URL.createObjectURL(response.data);
   }
 };

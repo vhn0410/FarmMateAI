@@ -20,5 +20,20 @@ class SqlAlchemyUserRepository(IUserRepository):
             id=db_user.id,
             username=db_user.username,
             hashed_password=db_user.hashed_password,
+            role=db_user.role,
             created_at=db_user.created_at
+        )
+
+    def create_user(self, user_data: dict) -> UserEntity:
+        new_user = UserModel(**user_data)
+        self.db.add(new_user)
+        self.db.commit()
+        self.db.refresh(new_user)
+        
+        return UserEntity(
+            id=new_user.id,
+            username=new_user.username,
+            hashed_password=new_user.hashed_password,
+            role=new_user.role,
+            created_at=new_user.created_at
         )

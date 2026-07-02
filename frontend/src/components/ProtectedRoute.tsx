@@ -4,7 +4,11 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthService } from '../api/authService';
 
-export const ProtectedRoute: React.FC = () => {
+interface ProtectedRouteProps {
+  requireAdmin?: boolean;
+}
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requireAdmin = false }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
@@ -32,6 +36,18 @@ export const ProtectedRoute: React.FC = () => {
   // Nếu chưa đăng nhập, điều hướng ngay lập tức về trang login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Nếu yêu cầu quyền admin nhưng user chưa có thông tin (đang tải) hoặc không phải admin
+  if (requireAdmin) {
+    if (!user) {
+      // Đang tải thông tin user, có thể hiển thị loading spinner ở đây
+      // Tạm thời trả về null hoặc UI chờ
+      return <div>Loading...</div>; 
+    }
+    if (user.role !== 'admin') {
+      return <Navigate to="/chat" replace />;
+    }
   }
 
   // Nếu đã đăng nhập, cho phép hiển thị các component con (các trang bên trong)

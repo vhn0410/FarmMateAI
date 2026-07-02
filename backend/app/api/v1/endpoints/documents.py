@@ -108,6 +108,29 @@ async def upload_knowledge_base_file(
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/knowledge-base/files/{file_id}/markdown")
+def get_knowledge_base_file_markdown(file_id: str):
+    """Lấy nội dung Markdown của file PDF."""
+    from fastapi import HTTPException
+    local_provider = LocalFileSystemProvider()
+    md_path = local_provider.get_md_path(file_id)
+    if not md_path.exists():
+        raise HTTPException(status_code=404, detail="Markdown file not found")
+    with open(md_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"status": "success", "data": content}
+
+
+@router.get("/knowledge-base/files/{file_id}/chunks")
+def get_knowledge_base_file_chunks(file_id: str):
+    """Lấy danh sách các chunks trong Vector Database của file PDF."""
+    from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
+    vector_provider = PGVectorProvider()
+    chunks = vector_provider.get_chunks_by_file_id(file_id)
+    return {"status": "success", "data": chunks}
+
 @router.delete("/knowledge-base/files/{file_id}")
 async def delete_knowledge_base_file(
     file_id: str,

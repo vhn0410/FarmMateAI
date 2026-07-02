@@ -98,13 +98,17 @@ class PGVectorProvider(IVectorStoreProvider):
         )
 
         search_kwargs = {}
-        if file_ids:
-            # Tạo list ID hợp lệ bao gồm cả bản gốc và bản có .md (cho file cũ)
-            valid_ids = []
-            for f_id in file_ids:
-                clean_id = f_id.replace(".pdf", "").replace(".md", "")
-                valid_ids.extend([clean_id, f_id, f"{clean_id}.md"])
-            search_kwargs["filter"] = {"file_id": {"$in": valid_ids}}
+        if file_ids is not None:
+            if not file_ids:
+                # Nếu được gọi với danh sách rỗng, ép trả về 0 kết quả
+                search_kwargs["filter"] = {"file_id": {"$in": ["__NONE__"]}}
+            else:
+                # Tạo list ID hợp lệ bao gồm cả bản gốc và bản có .md (cho file cũ)
+                valid_ids = []
+                for f_id in file_ids:
+                    clean_id = f_id.replace(".pdf", "").replace(".md", "")
+                    valid_ids.extend([clean_id, f_id, f"{clean_id}.md"])
+                search_kwargs["filter"] = {"file_id": {"$in": valid_ids}}
 
         return ParentDocumentRetriever(
             vectorstore=self._vector_store,
@@ -132,3 +136,14 @@ class PGVectorProvider(IVectorStoreProvider):
             """), {"id1": file_id, "id2": f"{file_id}.md"})
         
         print(f"🗑️ Đã xóa toàn bộ Vector Embeddings của file: {file_id}")
+
+    def get_chunks_by_file_id(self, file_id: str) -> list[dict]:
+        """Lấy toàn bộ các chunks (child chunks) của một file_id."""
+        clean_id = file_id.replace(".pdf", "").replace(".md", "")
+        with self._engine.begin() as conn:
+            rows = conn.execute(text("""
+                SELECT document, cmetadata FROM public.langchain_pg_embedding 
+                WHERE cmetadata->>'file_id' IN (:id1, :id2, :id3)
+            """), {"id1": file_id, "id2": f"{clean_id}.md", "id3": clean_id}).fetchall()
+            
+            return [{"content": row.document, "metadata": row.cmetadata} for row in rows]

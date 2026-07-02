@@ -19,6 +19,46 @@ export const KnowledgeWorkspace: React.FC = () => {
   const [chatWidth, setChatWidth] = useState(400);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Document viewer states
+  const [viewMode, setViewMode] = useState<'pdf' | 'markdown' | 'chunks'>('pdf');
+  const [markdownContent, setMarkdownContent] = useState<string>('');
+  const [chunksContent, setChunksContent] = useState<any[]>([]);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+    let currentPdfUrl: string | null = null;
+
+    const loadContent = async () => {
+      setIsLoadingContent(true);
+      try {
+        if (viewMode === 'pdf') {
+          const url = await knowledgeService.getFileStreamUrl(selectedFile.id);
+          setPdfUrl(url);
+          currentPdfUrl = url;
+        } else if (viewMode === 'markdown') {
+          const md = await knowledgeService.getFileMarkdown(selectedFile.id);
+          setMarkdownContent(md);
+        } else if (viewMode === 'chunks') {
+          const chunks = await knowledgeService.getFileChunks(selectedFile.id);
+          setChunksContent(chunks);
+        }
+      } catch (err) {
+        console.error("Failed to load content", err);
+      } finally {
+        setIsLoadingContent(false);
+      }
+    };
+    loadContent();
+
+    return () => {
+      if (currentPdfUrl) {
+        URL.revokeObjectURL(currentPdfUrl);
+      }
+    };
+  }, [selectedFile, viewMode]);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
@@ -116,14 +156,10 @@ export const KnowledgeWorkspace: React.FC = () => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
     
-    // Nếu có chọn file để lọc chat, dùng API chuyên dụng (RAG)
-    if (selectedFileIds.length > 0) {
-      if (sendDocumentMessage) {
-        sendDocumentMessage(chatInput, selectedFileIds);
-      }
-    } else {
-      // Nếu không chọn file nào, chat bình thường bằng Agent
-      sendMessage(chatInput);
+    // Luôn luôn dùng API RAG chuyên dụng trong Knowledge Workspace.
+    // Nếu không chọn file (selectedFileIds rỗng), backend sẽ chặn không cho tìm kiếm gì cả.
+    if (sendDocumentMessage) {
+      sendDocumentMessage(chatInput, selectedFileIds);
     }
     setChatInput('');
   };
@@ -223,15 +259,76 @@ export const KnowledgeWorkspace: React.FC = () => {
           <h2 className="font-semibold text-gray-800 truncate pr-4">
             {selectedFile ? selectedFile.name : 'Select a document'}
           </h2>
+          {selectedFile && (
+            <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm text-sm">
+              <button
+                onClick={() => setViewMode('pdf')}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'pdf' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+              >
+                PDF
+              </button>
+              <button
+                onClick={() => setViewMode('markdown')}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'markdown' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+              >
+                Markdown
+              </button>
+              <button
+                onClick={() => setViewMode('chunks')}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'chunks' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+              >
+                Chunks
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex-1 bg-gray-100/50 relative">
           {isDragging && <div className="absolute inset-0 z-20 cursor-col-resize bg-transparent" />}
           {selectedFile ? (
-            <iframe
-              src={`/api/v1/documents/knowledge-base/files/${selectedFile.id}/stream`}
-              className="w-full h-full border-0 absolute inset-0 z-10"
-              title={selectedFile.name}
-            />
+            isLoadingContent ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-20">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : viewMode === 'pdf' ? (
+              pdfUrl ? (
+                <iframe
+                  src={pdfUrl}
+                  className="w-full h-full border-0 absolute inset-0 z-10 bg-white"
+                  title={selectedFile.name}
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500 z-10">
+                  <p>Loading PDF...</p>
+                </div>
+              )
+            ) : viewMode === 'markdown' ? (
+              <div className="absolute inset-0 z-10 overflow-auto bg-white p-8">
+                <div className="max-w-4xl mx-auto prose prose-blue">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {markdownContent}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 z-10 overflow-auto bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto space-y-4">
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">Database Chunks ({chunksContent.length})</h3>
+                  {chunksContent.map((chunk, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                      <div className="mb-2 text-xs text-gray-400 bg-gray-100 p-2 rounded-lg font-mono overflow-auto">
+                        {JSON.stringify(chunk.metadata)}
+                      </div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap font-serif">
+                        {chunk.content}
+                      </div>
+                    </div>
+                  ))}
+                  {chunksContent.length === 0 && (
+                    <div className="text-center text-gray-500 py-10">No chunks found in database.</div>
+                  )}
+                </div>
+              </div>
+            )
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400 z-10">
               <div className="text-center">
@@ -283,22 +380,28 @@ export const KnowledgeWorkspace: React.FC = () => {
                     ? 'bg-blue-600 text-white rounded-tr-none prose-invert' 
                     : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
                 }`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  {msg.content ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <div className="flex gap-1.5 items-center h-5 px-1">
+                      {msg.statuses && msg.statuses.length > 0 ? (
+                        <span className="text-gray-500 italic animate-pulse">{msg.statuses[msg.statuses.length - 1]}</span>
+                      ) : (
+                        <>
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
           )}
-          {isChatLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex gap-1 items-center">
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* Chat Input */}
