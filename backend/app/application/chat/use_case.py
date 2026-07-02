@@ -360,3 +360,5 @@ class ChatUseCase:
             print(f"[Lỗi Streaming]: {e}")
             error_data = {"event": "error", "message": f"Hệ thống gặp sự cố: {str(e)}"}
             yield f"data: {json.dumps(error_data)}\n\n"
+
+

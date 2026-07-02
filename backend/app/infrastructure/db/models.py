@@ -16,6 +16,7 @@ class UserModel(Base):
     email = Column(String, nullable=True)
     full_name = Column(String, nullable=True)
     auth_provider = Column(String, default="postgres") # Lưu vết: 'postgres' hoặc 'keycloak'
+    role = Column(String, default="user", nullable=False) # 'user' or 'admin'
     
     # Quan hệ 1-N sang Conversations
     conversations = relationship("ConversationModel", back_populates="owner", cascade="all, delete-orphan")

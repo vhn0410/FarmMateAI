@@ -48,7 +48,7 @@ class DocumentUseCase:
         for doc in raw_documents:
             # 1. Trích xuất thông tin cơ bản
             source_file = doc.metadata.get("source", "Unknown")
-            file_id = self._extract_file_id(source_file)
+            file_id = doc.metadata.get("file_id") or self._extract_file_id(source_file)
             file_name = self._extract_file_name(doc, source_file)
 
             processed_file_ids.add(file_id)
@@ -136,9 +136,38 @@ class DocumentUseCase:
             print("🚚 Đang đánh dấu hoàn tất các file đã xử lý...")
             for file_id in file_ids:
                 if file_id:
-                    self.provider.mark_as_processed(file_id)
+                    # Kiểm tra lại một lần nữa: Nếu PDF gốc bị xóa TRONG QUÁ TRÌNH lưu DB
+                    # => Đây là "Tài liệu Zombie", ta phải lập tức Scrub (xóa) nó khỏi DB!
+                    if not self.provider.get_pdf_path(f"{file_id}.pdf").exists():
+                        print(f"⚠️ Phát hiện file {file_id} bị xóa ngang lúc lưu DB. Tiến hành dọn dẹp Zombie Chunks!")
+                        self.vector_store_provider.delete_documents_by_file_id(file_id)
+                        # Dọn luôn file MD
+                        self.provider.delete_file(file_id)
+                    else:
+                        self.provider.mark_as_processed(file_id)
             return True
 
         except Exception as e:
             print(f"❌ Lỗi nghiêm trọng khi lưu DB: {str(e)}")
             return False
+
+    def delete_document(self, file_id: str) -> str:
+        """
+        Xóa toàn bộ tài liệu (File vật lý + Vector Embeddings).
+        """
+        # Đảm bảo file_id không chứa đuôi mở rộng
+        clean_file_id = file_id.replace(".pdf", "").replace(".md", "")
+        
+        try:
+            # 1. Xóa trong CSDL Vector
+            if hasattr(self.vector_store_provider, "delete_documents_by_file_id"):
+                self.vector_store_provider.delete_documents_by_file_id(clean_file_id)
+            
+            # 2. Xóa File vật lý
+            if hasattr(self.provider, "delete_file"):
+                self.provider.delete_file(clean_file_id)
+                
+            return "Xóa tài liệu thành công"
+        except Exception as e:
+            print(f"❌ Lỗi khi xóa tài liệu {clean_file_id}: {str(e)}")
+            raise e

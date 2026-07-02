@@ -6,4 +6,5 @@ class UserEntity:
     id: str
     username: str
     hashed_password: str
+    role: str
     created_at: datetime

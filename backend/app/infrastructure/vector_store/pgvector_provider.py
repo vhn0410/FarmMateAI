@@ -2,11 +2,11 @@ from typing import List, Any
 from langchain_core.documents import Document
 from app.domain.interfaces.vector_db import IVectorStoreProvider
 
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
 from app.infrastructure.vector_store.hybrid_retriever import PostgresHybridRetriever
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from langchain_classic.retrievers.parent_document_retriever import (
     ParentDocumentRetriever,
 )
@@ -41,8 +41,10 @@ class PGVectorProvider(IVectorStoreProvider):
         self._docstore = PostgresDocStore(self._engine)
 
     def _get_embeddings_model(self):
-        return OpenAIEmbeddings(
-            model="text-embedding-3-small", api_key=settings.openai_api_key
+        return HuggingFaceEmbeddings(
+            model_name=settings.huggingface_embedding_model,
+            model_kwargs={'device': 'cpu'}, 
+            encode_kwargs={'normalize_embeddings': True}
         )
 
     def add_documents(self, documents: List[Document]) -> None:
@@ -83,9 +85,10 @@ class PGVectorProvider(IVectorStoreProvider):
     # ==========================================
     # PHẦN MỚI: CUNG CẤP PARENT DOCUMENT RETRIEVER
     # ==========================================
-    def get_parent_document_retriever(self) -> ParentDocumentRetriever:
+    def get_parent_document_retriever(self, file_ids: list[str] = None) -> ParentDocumentRetriever:
         """
         Trả về PDR object. Dùng chung cho cả Ingestion (Lưu DB) và Retrieval (Chat).
+        Nếu có file_ids, sẽ tạo filter để chỉ search trong các file được chỉ định.
         """
         # Child splitter dùng để băm nhỏ dữ liệu lưu vào VectorDB
         child_splitter = RecursiveCharacterTextSplitter(
@@ -94,10 +97,53 @@ class PGVectorProvider(IVectorStoreProvider):
             separators=["\n\n", "\n", r"(?<=\. )", " ", ""],
         )
 
+        search_kwargs = {}
+        if file_ids is not None:
+            if not file_ids:
+                # Nếu được gọi với danh sách rỗng, ép trả về 0 kết quả
+                search_kwargs["filter"] = {"file_id": {"$in": ["__NONE__"]}}
+            else:
+                # Tạo list ID hợp lệ bao gồm cả bản gốc và bản có .md (cho file cũ)
+                valid_ids = []
+                for f_id in file_ids:
+                    clean_id = f_id.replace(".pdf", "").replace(".md", "")
+                    valid_ids.extend([clean_id, f_id, f"{clean_id}.md"])
+                search_kwargs["filter"] = {"file_id": {"$in": valid_ids}}
+
         return ParentDocumentRetriever(
             vectorstore=self._vector_store,
             docstore=self._docstore,
             child_splitter=child_splitter,
             # parent_splitter=None vì ta đã cắt Parent bằng Markdown từ bên ngoài
             parent_splitter=None,
+            search_kwargs=search_kwargs,
         )
+
+    def delete_documents_by_file_id(self, file_id: str) -> None:
+        """Xóa toàn bộ các document (Embeddings và Docstore) liên quan đến file_id."""
+        with self._engine.begin() as conn:
+            # 1. Xóa trong bảng Embedding (chunks)
+            # Chú ý: Một số file cũ được ingest bằng script ngoài có file_id chứa đuôi .md
+            conn.execute(text("""
+                DELETE FROM public.langchain_pg_embedding 
+                WHERE cmetadata->>'file_id' IN (:id1, :id2)
+            """), {"id1": file_id, "id2": f"{file_id}.md"})
+            
+            # 2. Xóa trong bảng DocStore (parent docs)
+            conn.execute(text("""
+                DELETE FROM public.langchain_pg_docstore 
+                WHERE document->'metadata'->>'file_id' IN (:id1, :id2)
+            """), {"id1": file_id, "id2": f"{file_id}.md"})
+        
+        print(f"🗑️ Đã xóa toàn bộ Vector Embeddings của file: {file_id}")
+
+    def get_chunks_by_file_id(self, file_id: str) -> list[dict]:
+        """Lấy toàn bộ các chunks (child chunks) của một file_id."""
+        clean_id = file_id.replace(".pdf", "").replace(".md", "")
+        with self._engine.begin() as conn:
+            rows = conn.execute(text("""
+                SELECT document, cmetadata FROM public.langchain_pg_embedding 
+                WHERE cmetadata->>'file_id' IN (:id1, :id2, :id3)
+            """), {"id1": file_id, "id2": f"{clean_id}.md", "id3": clean_id}).fetchall()
+            
+            return [{"content": row.document, "metadata": row.cmetadata} for row in rows]

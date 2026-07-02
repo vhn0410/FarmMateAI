@@ -2,13 +2,53 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 import requests
 
-from app.core.dependencies import get_auth_provider
+from pydantic import BaseModel
+from typing import Optional
+
+from app.core.dependencies import get_auth_provider, get_user_repository
 from app.domain.interfaces.auth_provider import IAuthProvider
+from app.domain.interfaces.repositories.user_repository import IUserRepository
 from app.core.security import get_current_user, oauth2_scheme
 from app.infrastructure.api.aaem_client import AAEMClient
 from app.infrastructure.api.ppm_client import PPMClient
+from app.infrastructure.auth.postgres_auth import pwd_context
 
 router = APIRouter()
+
+class UserRegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    role: str = "user"
+
+@router.post("/register")
+def register_user(
+    request: UserRegisterRequest,
+    user_repo: IUserRepository = Depends(get_user_repository)
+):
+    """
+    API đăng ký user mới.
+    """
+    # Check existing
+    existing = user_repo.get_by_username(request.username)
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    hashed_password = pwd_context.hash(request.password)
+    
+    user_data = {
+        "username": request.username,
+        "hashed_password": hashed_password,
+        "email": request.email,
+        "full_name": request.full_name,
+        "role": request.role,
+        "auth_provider": "postgres"
+    }
+    
+    user_repo.create_user(user_data)
+    
+    return {"status": "success", "message": "User registered successfully"}
 
 @router.post("/login")
 def login_for_access_token(

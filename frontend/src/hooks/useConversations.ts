@@ -27,5 +27,18 @@ export const useConversations = () => {
     fetchConversations();
   }, [fetchConversations]);
 
-  return { conversations, isLoading, fetchConversations };
+  // Xóa hội thoại
+  const deleteConversation = useCallback(async (id: string) => {
+    try {
+      await conversationService.deleteConversation(id);
+      // Xóa thành công thì refetch hoặc loại khỏi danh sách
+      setConversations(prev => prev.filter(c => c.id !== id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      return false;
+    }
+  }, []);
+
+  return { conversations, isLoading, fetchConversations, deleteConversation };
 };

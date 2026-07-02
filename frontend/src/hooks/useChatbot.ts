@@ -54,19 +54,67 @@ export const useChatbot = () => {
 
         } else if (data.event === 'done') {
           if (data.session_id) setSessionId(data.session_id);
+        } else if (data.event === 'error') {
+          setMessages(prev => prev.map(msg =>
+            msg.id === botMsgId ? { ...msg, content: msg.content + '\n\n*(Lỗi: ' + data.message + ')*' } : msg
+          ));
         }
       }
     } catch (error) {
       console.error('Error during streaming:', error);
-      setMessages(prev => prev.map(msg =>
-        msg.id === botMsgId
-          ? { ...msg, content: msg.content + '\n\n*(Connection error occurred. Please try again!)*' }
-          : msg
-      ));
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', content: 'Có lỗi xảy ra, vui lòng thử lại sau.' }]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const sendDocumentMessage = async (text: string, fileIds: string[]) => {
+    if (!text.trim()) return;
+
+    const userMsgId = Date.now().toString();
+    const botMsgId = (Date.now() + 1).toString();
+
+    setMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user', content: text },
+      { id: botMsgId, role: 'bot', content: '', statuses: [] }
+    ]);
+    setIsLoading(true);
+
+    try {
+      const stream = chatService.sendDocumentStreamMessage({ query: text, session_id: sessionId }, fileIds);
+
+      for await (const data of stream) {
+        if (data.event === 'status' && data.message) {
+          setMessages(prev => prev.map(msg => {
+            if (msg.id === botMsgId) {
+              const currentStatuses = msg.statuses || [];
+              if (currentStatuses[currentStatuses.length - 1] !== data.message) {
+                return { ...msg, statuses: [...currentStatuses, data.message as string] };
+              }
+            }
+            return msg;
+          }));
+        } else if (data.event === 'token' && data.text) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === botMsgId ? { ...msg, content: msg.content + data.text } : msg
+          ));
+        } else if (data.event === 'done') {
+          if (data.session_id) setSessionId(data.session_id);
+        } else if (data.event === 'error') {
+          setMessages(prev => prev.map(msg =>
+            msg.id === botMsgId ? { ...msg, content: msg.content + '\n\n*(Lỗi: ' + data.message + ')*' } : msg
+          ));
+        }
+      }
+    } catch (error) {
+      console.error('Error during streaming:', error);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', content: 'Có lỗi xảy ra, vui lòng thử lại sau.' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // BỔ SUNG 1: Hàm tải lịch sử tin nhắn
   const loadConversation = async (id: string) => {
     setIsHistoryLoading(true);
@@ -98,5 +146,5 @@ export const useChatbot = () => {
     setMessages([]); // Xóa sạch tin nhắn trên màn hình
     setSessionId(undefined); // Reset lại ID để Backend tạo session mới
   };
-  return { messages, isLoading, isHistoryLoading, sendMessage, sessionId, loadConversation, startNewChat };
+  return { messages, isLoading, isHistoryLoading, sendMessage, sendDocumentMessage, sessionId, loadConversation, startNewChat };
 };

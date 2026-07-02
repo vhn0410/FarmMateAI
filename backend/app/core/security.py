@@ -22,7 +22,7 @@ def get_current_user(
 
     # 2. Tìm user trong CSDL nội bộ
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    
+
     # 3. KỸ THUẬT JIT PROVISIONING (SHADOW USER)
     if not user:
         print("DB execute.......................................")
@@ -34,6 +34,7 @@ def get_current_user(
                 email=token_data.get("email"),
                 full_name=token_data.get("full_name"),
                 auth_provider="keycloak",
+                role="user"
             )
             db.add(user)
             db.commit()
@@ -46,3 +47,15 @@ def get_current_user(
 
     # 4. Trả về object User hoàn chỉnh cho các API khác xài (như API chat)
     return user
+
+def get_admin_user(current_user: UserModel = Depends(get_current_user)):
+    """
+    Dependency kiểm tra user có quyền admin hay không.
+    Sử dụng sau get_current_user để đảm bảo user đã đăng nhập.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403, 
+            detail="Bạn không có quyền truy cập chức năng này. Yêu cầu quyền Admin."
+        )
+    return current_user

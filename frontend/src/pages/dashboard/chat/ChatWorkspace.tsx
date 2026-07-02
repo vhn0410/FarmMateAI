@@ -1,11 +1,84 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatbot } from '../../../hooks/useChatbot';
 import { useConversations } from '../../../hooks/useConversations';
+import { BarChart, PieChart } from 'reaviz';
+
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const MessageContent: React.FC<{ content: string; onAction: (query: string) => void }> = ({ content, onAction }) => {
+  return (
+    <div className="w-full prose prose-sm max-w-none prose-blue">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={(value: string) => value}
+        components={{
+          a(props) {
+            const { href, children, ...rest } = props;
+            if (href && href.startsWith('#action:')) {
+              // The AI is instructed to use underscores instead of spaces to avoid breaking markdown parsers
+              const query = decodeURIComponent(href.replace('#action:', '')).replace(/_/g, ' ');
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onAction(query);
+                  }}
+                  className="inline-block mt-1 mb-1 px-3 py-1.5 bg-blue-50 text-blue-600 font-medium text-sm rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm cursor-pointer no-underline"
+                >
+                  {children}
+                </button>
+              );
+            }
+            return <a href={href} {...rest}>{children}</a>;
+          },
+          code(props) {
+            const {children, className, node, ...rest} = props;
+            const match = /language-(\w+)/.exec(className || '');
+            
+            if (match && match[1] === 'chart') {
+              try {
+                const jsonStr = String(children).replace(/\n$/, '');
+                const chartConfig = JSON.parse(jsonStr);
+                return (
+                  <div className="my-5 w-full bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg overflow-hidden flex flex-col items-center">
+                     <div className="h-64 w-full flex justify-center items-center">
+                       {chartConfig.type === 'bar' && <BarChart data={chartConfig.data} />}
+                       {chartConfig.type === 'pie' && <PieChart data={chartConfig.data} />}
+                     </div>
+                     
+                     {/* Custom Legend */}
+                     <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 border-t border-slate-700 w-full pt-4">
+                       {chartConfig.data.map((item: any, idx: number) => (
+                         <div key={idx} className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                           <span className="text-slate-400 font-normal">{item.key}:</span>
+                           <span className="text-white text-base">{item.data}</span>
+                         </div>
+                       ))}
+                     </div>
+                  </div>
+                );
+              } catch (e) {
+                console.error('Failed to parse chart JSON', e);
+                return <code {...rest} className={className}>{children}</code>;
+              }
+            }
+            return <code {...rest} className={className}>{children}</code>;
+          }
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
 
 export const ChatWorkspace: React.FC = () => {
   const { messages, isLoading: isChatLoading, sendMessage, sessionId, loadConversation, startNewChat } = useChatbot();
-  const { conversations, isLoading: isNavLoading } = useConversations();
+  const { conversations, isLoading: isNavLoading, deleteConversation } = useConversations();
   const [input, setInput] = useState('');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -20,36 +93,90 @@ export const ChatWorkspace: React.FC = () => {
     setInput('');
   };
 
-  // Group conversations by a generic "Recent" or by date if needed. 
-  // For simplicity, we just list them.
+  const handleDelete = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) {
+      return;
+    }
+    const success = await deleteConversation(convId);
+    if (success && sessionId === convId) {
+      startNewChat();
+    }
+  };
 
   return (
-    <div className="flex-1 flex bg-[#E8F1FF] font-sans">
+    <div className="flex-1 flex bg-[#E8F1FF] font-sans relative w-full h-full">
       
-      {/* ---------------- MIDDLE SIDEBAR: CHATS LIST ---------------- */}
-      <aside className="w-[320px] bg-white flex flex-col shrink-0 border-r border-gray-100 shadow-sm z-10 m-2 rounded-2xl overflow-hidden">
-        
+      {/* Mobile overlay */}
+      <div 
+        className={`md:hidden fixed inset-0 bg-gray-900/20 z-30 transition-opacity duration-300 ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setIsMobileSidebarOpen(false)} 
+      />
+
+      {/* ---------------- DESKTOP SIDEBAR: always visible, not toggleable ---------------- */}
+      <aside
+        className="desktop-sidebar flex-col w-[340px] shrink-0 bg-white m-2 rounded-2xl shadow-sm overflow-hidden"
+      >
         <div className="p-5 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-xl font-bold text-blue-600">Chats</h2>
+          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
           <button 
-            onClick={startNewChat}
+            onClick={() => startNewChat()}
             className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+            title="New chat"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
           </button>
         </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+          {conversations.map(conv => {
+            const isActive = sessionId === conv.id;
+            return (
+              <div
+                key={conv.id}
+                onClick={() => loadConversation(conv.id)}
+                className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
+                  isActive
+                    ? 'bg-blue-50 border border-blue-100 shadow-sm'
+                    : 'hover:bg-gray-50 border border-transparent'
+                }`}
+              >
+                <div className="flex-1 min-w-0 pr-2">
+                  <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
+                    {conv.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 line-clamp-2">
+                    Click to continue chatting.
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => handleDelete(e, conv.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  title="Delete conversation"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
 
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            <input 
-              type="text" 
-              placeholder="Search.." 
-              className="w-full bg-gray-50 pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-shadow"
-            />
+      {/* ---------------- MOBILE SIDEBAR: toggleable drawer ---------------- */}
+      <aside className={`
+        md:hidden absolute inset-y-0 left-0 max-w-xs w-4/5 bg-white flex flex-col shrink-0 shadow-2xl z-40 overflow-hidden transition-transform duration-300 ease-in-out
+        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="p-5 flex items-center justify-between border-b border-gray-100">
+          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
+          <div className="flex gap-2">
+            <button onClick={() => setIsMobileSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <button onClick={() => { startNewChat(); setIsMobileSidebarOpen(false); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+            </button>
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
           {isNavLoading ? (
             <div className="p-4 text-center text-sm text-gray-500">Loading chats...</div>
@@ -59,25 +186,27 @@ export const ChatWorkspace: React.FC = () => {
             conversations.map((conv) => {
               const isActive = sessionId === conv.id;
               return (
-                <button 
+                <div
                   key={conv.id}
-                  onClick={() => loadConversation(conv.id)}
-                  className={`w-full text-left p-3 rounded-xl transition-all ${
-                    isActive 
-                      ? 'bg-blue-50 border border-blue-100 shadow-sm' 
+                  onClick={() => { loadConversation(conv.id); setIsMobileSidebarOpen(false); }}
+                  className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
+                    isActive
+                      ? 'bg-blue-50 border border-blue-100 shadow-sm'
                       : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className={`font-semibold text-sm truncate pr-2 ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>
-                      {conv.title}
-                    </h4>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <h4 className={`font-semibold text-sm truncate ${isActive ? 'text-gray-900' : 'text-gray-800'}`}>{conv.title}</h4>
+                    <p className="text-xs text-gray-500 line-clamp-2 mt-1">Click to continue chatting.</p>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                    {/* Placeholder snippet since backend might not return last message */}
-                    Click to view the conversation details and continue chatting.
-                  </p>
-                </button>
+                  <button
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                    title="Delete conversation"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
               );
             })
           )}
@@ -85,14 +214,35 @@ export const ChatWorkspace: React.FC = () => {
       </aside>
 
       {/* ---------------- MAIN CHAT AREA ---------------- */}
-      <section className="flex-1 flex flex-col min-w-0 relative my-2 mr-2 bg-transparent">
+      <section className="flex-1 flex flex-col min-w-0 relative my-2 mr-2 bg-transparent transition-all duration-300">
         
         {/* HEADER */}
         <header className="flex h-16 shrink-0 items-center justify-between px-6 z-10">
-          <h2 className="text-xl font-bold text-gray-800">
-            {sessionId ? conversations.find(c => c.id === sessionId)?.title || 'Current Chat' : 'New Chat'}
-          </h2>
+          {/* Left: spacer on mobile for the fixed hamburger, title on desktop */}
           <div className="flex items-center gap-3">
+            <span className="md:hidden w-10" /> {/* spacer so title doesn't hide behind hamburger */}
+            <h2 className="text-xl font-bold text-gray-800">
+              {sessionId ? conversations.find(c => c.id === sessionId)?.title || 'Current Chat' : 'New Chat'}
+            </h2>
+          </div>
+          {/* Right: actions */}
+          <div className="flex items-center gap-2">
+            {/* Mobile-only: open conversations drawer — placed on RIGHT side, away from main menu */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="md:hidden relative p-2 text-gray-500 hover:bg-white hover:text-blue-600 rounded-xl transition-colors bg-white/70 shadow-sm"
+              title="Conversations"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              {/* Badge showing conversation count */}
+              {conversations.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {conversations.length > 9 ? '9+' : conversations.length}
+                </span>
+              )}
+            </button>
             <button className="p-2 text-gray-500 hover:bg-white rounded-full transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
             <button className="p-2 text-gray-500 hover:bg-white rounded-full transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg></button>
           </div>
@@ -151,8 +301,8 @@ export const ChatWorkspace: React.FC = () => {
 
                         {/* Content */}
                         {msg.content && (
-                          <div className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-50 text-gray-700 leading-relaxed">
-                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                          <div className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-50 text-gray-700 leading-relaxed overflow-hidden">
+                            <MessageContent content={msg.content} onAction={(query) => sendMessage(query)} />
                           </div>
                         )}
                         

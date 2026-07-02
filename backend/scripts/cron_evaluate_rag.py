@@ -104,9 +104,20 @@ def run_cron_evaluation():
     df = pd.DataFrame(results)
     dataset = Dataset.from_pandas(df)
 
-    judge_llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini", temperature=0.0))
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from app.core.config import settings
+
+    chat_kwargs = {"model": "gpt-4o-mini", "temperature": 0.0}
+    if settings.openai_api_base:
+        chat_kwargs["base_url"] = settings.openai_api_base
+
+    judge_llm = LangchainLLMWrapper(ChatOpenAI(**chat_kwargs))
     judge_embeddings = LangchainEmbeddingsWrapper(
-        OpenAIEmbeddings(model="text-embedding-3-small")
+        HuggingFaceEmbeddings(
+            model_name=settings.huggingface_embedding_model,
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
     )
     metrics = [context_precision, context_recall, faithfulness, answer_relevancy]
 

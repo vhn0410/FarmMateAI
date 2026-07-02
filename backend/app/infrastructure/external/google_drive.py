@@ -129,3 +129,70 @@ class GoogleDriveProvider(IDocumentProvider):
         except Exception as e:
             print(f"❌ Lỗi khi tải và đọc file JSON (ID: {file_id}): {str(e)}")
             return None
+
+    def list_pdf_files(self, folder_id: str):
+        """Lấy danh sách tất cả các file PDF trong một thư mục cụ thể."""
+        try:
+            query = f"'{folder_id}' in parents and mimeType = 'application/pdf' and trashed = false"
+            results = (
+                self.service.files()
+                .list(q=query, fields="files(id, name, webViewLink, webContentLink)")
+                .execute()
+            )
+            return results.get("files", [])
+        except Exception as e:
+            print(f"❌ Lỗi khi lấy danh sách file PDF: {str(e)}")
+            return []
+
+    def stream_file_generator(self, file_id: str):
+        """Generator trả về từng đoạn chunk của file để stream qua API."""
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            # Dùng trực tiếp HttpRequest.execute() kết hợp io.BytesIO không hiệu quả với file lớn,
+            # Tuy nhiên MediaIoBaseDownload cũng phải download về io.BytesIO.
+            # Cách tốt hơn để stream file lớn là tải từng phần. 
+            # Google API Python client hỗ trợ MediaIoBaseDownload.
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request, chunksize=1024*1024) # 1MB chunks
+            
+            done = False
+            while done is False:
+                # Đánh dấu vị trí hiện tại
+                start_pos = fh.tell()
+                status, done = downloader.next_chunk()
+                
+                # Di chuyển con trỏ về đầu đoạn chunk vừa ghi
+                fh.seek(start_pos)
+                chunk = fh.read()
+                yield chunk
+                
+                # Xóa dữ liệu cũ trong BytesIO để tiết kiệm RAM
+                # Python io.BytesIO không có cách clear 1 phần dễ dàng, 
+                # nên tạo buffer mới hoặc dùng seek/truncate là cách tốt.
+                # Nhưng an toàn hơn là ghi đè.
+                fh.seek(0)
+                fh.truncate(0)
+
+        except Exception as e:
+            print(f"❌ Lỗi khi stream file từ Drive: {str(e)}")
+            yield b""
+
+    def upload_file(self, file_name: str, file_bytes: bytes, mime_type: str, folder_id: str):
+        """Tải file lên một thư mục cụ thể trên Google Drive."""
+        from googleapiclient.http import MediaIoBaseUpload
+        import io
+        try:
+            file_metadata = {
+                'name': file_name,
+                'parents': [folder_id]
+            }
+            media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=True)
+            file = self.service.files().create(
+                body=file_metadata, 
+                media_body=media, 
+                fields='id, name, webViewLink, webContentLink'
+            ).execute()
+            return file
+        except Exception as e:
+            print(f"❌ Lỗi khi tải file lên Drive: {str(e)}")
+            raise e

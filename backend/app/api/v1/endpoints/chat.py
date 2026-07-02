@@ -17,6 +17,7 @@ def get_chat_use_case(db: Session = Depends(get_db)):
     return ChatUseCase(llm_provider=llm_provider, db=db)
 
 
+
 @router.post("/", response_model=ChatResponse)
 async def chat_with_farmmate(
     request: ChatRequest,
@@ -47,3 +48,5 @@ async def stream_chat_with_farmmate(
         use_case.stream_chat(request, current_user, token),
         media_type="text/event-stream",  # Định dạng bắt buộc để trình duyệt hiểu đây là luồng SSE
     )
+
+
