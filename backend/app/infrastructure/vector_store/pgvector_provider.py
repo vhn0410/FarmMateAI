@@ -110,14 +110,21 @@ class PGVectorProvider(IVectorStoreProvider):
                     valid_ids.extend([clean_id, f_id, f"{clean_id}.md"])
                 search_kwargs["filter"] = {"file_id": {"$in": valid_ids}}
 
-        return HybridParentDocumentRetriever(
+        base_retriever = HybridParentDocumentRetriever(
             vectorstore=self._vector_store,
             docstore=self._docstore,
             child_splitter=child_splitter,
             search_kwargs=search_kwargs,
             connection_string=DB_CONNECTION,
             embeddings=self._vector_store.embeddings,
-            top_k=3 # Chỉ lấy 3 parent docs xuất sắc nhất đưa vào LLM
+            top_k=15 # Lấy 15 parent docs tốt nhất để đưa vào Cross-Encoder chấm điểm lại
+        )
+        
+        from app.infrastructure.vector_store.reranker import CrossEncoderReranker, CrossEncoderRerankingRetriever
+        reranker = CrossEncoderReranker(top_k=3)
+        return CrossEncoderRerankingRetriever(
+            base_retriever=base_retriever,
+            reranker=reranker
         )
 
     def delete_documents_by_file_id(self, file_id: str) -> None:

@@ -19,6 +19,7 @@ from langchain_classic.retrievers import EnsembleRetriever
 
 from app.core.config import settings
 from app.application.documents.chunking.parent_document_chunker import ParentDocumentChunker
+from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 
 LLM = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key, base_url=settings.openai_api_base, temperature=0)
 
@@ -110,10 +111,16 @@ def main():
         weights=[0.5, 0.5]
     )
     
+    # D. Production Retriever (PGVector + Hybrid + CrossEncoder)
+    print("Đang khởi tạo Production Retriever (PostgreSQL)...")
+    pg_provider = PGVectorProvider()
+    prod_retriever = pg_provider.get_parent_document_retriever(file_ids=[args.file, f"{args.file}.md"])
+    
     retrievers_to_test = {
         "Pure Vector Search (FAISS)": vector_retriever,
         "Pure Keyword Search (BM25)": keyword_retriever,
-        "Hybrid Search (RRF 50/50)": hybrid_retriever
+        "Hybrid Search (RRF 50/50)": hybrid_retriever,
+        "Production Hybrid + Reranker": prod_retriever
     }
     
     results = {}

@@ -9,6 +9,7 @@ export interface MessageItem {
   role: 'user' | 'bot';
   content: string;
   statuses?: string[];
+  sources?: any[];
 }
 
 export const useChatbot = () => {
@@ -46,6 +47,11 @@ export const useChatbot = () => {
             }
             return msg;
           }));
+
+        } else if (data.event === 'sources' && data.sources) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === botMsgId ? { ...msg, sources: data.sources } : msg
+          ));
 
         } else if (data.event === 'token' && data.text) {
           setMessages(prev => prev.map(msg =>
@@ -95,6 +101,10 @@ export const useChatbot = () => {
             }
             return msg;
           }));
+        } else if (data.event === 'sources' && data.sources) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === botMsgId ? { ...msg, sources: data.sources } : msg
+          ));
         } else if (data.event === 'token' && data.text) {
           setMessages(prev => prev.map(msg =>
             msg.id === botMsgId ? { ...msg, content: msg.content + data.text } : msg

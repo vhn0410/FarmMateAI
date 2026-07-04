@@ -153,7 +153,7 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
                        RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank
                 FROM langchain_pg_embedding
                 WHERE 1=1 {filter_clause}
-                LIMIT 20
+                LIMIT 50
             ),
             keyword_search AS (
                 SELECT id, document, cmetadata,
@@ -162,7 +162,7 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
                 FROM langchain_pg_embedding
                 WHERE fts_vector @@ websearch_to_tsquery('simple', :fts_query)
                 {filter_clause}
-                LIMIT 20
+                LIMIT 50
             )
             SELECT
                 COALESCE(v.id, k.id) as id,
@@ -175,7 +175,7 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
             FROM vector_search v
             FULL OUTER JOIN keyword_search k ON v.id = k.id
             ORDER BY rrf_score DESC
-            LIMIT 20
+            LIMIT 50
         """
 
         engine = create_engine(self.connection_string, echo=False)
