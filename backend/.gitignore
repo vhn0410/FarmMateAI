@@ -89,3 +89,6 @@ frontend/node_modules/
 
 # Ignore the evaluations results directory
 scripts/temp/evaluations/results/
+
+
+data/
