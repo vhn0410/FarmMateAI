@@ -5,5 +5,6 @@
 | Phương pháp | Tổng Chunks | Kích thước TB (ký tự) | Thời gian (s) | Precision (%) | Recall (%) |
 |-------------|-------------|-----------------------|---------------|---------------|------------|
 | Parent Document Chunking | 162 | 602 | 0.01 | **87.5%** | **62.5%** |
-| Semantic Chunking | 22 | 4233 | 64.12 | **97.5%** | **77.5%** |
-| Advanced LLM Chunking | 41 | 564 | 31.93 | **87.5%** | **60.0%** |
+| LLM-Cleaned PDR | 154 | 554 | 221.15 | **92.5%** | **67.5%** |
+| Semantic Chunking | 22 | 4233 | 64.67 | **97.5%** | **77.5%** |
+| Advanced LLM Chunking | 52 | 549 | 19.79 | **92.5%** | **65.0%** |

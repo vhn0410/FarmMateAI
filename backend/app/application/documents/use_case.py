@@ -5,6 +5,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from app.domain.interfaces.document_provider import IDocumentProvider
 from app.domain.interfaces.vector_db import IVectorStoreProvider
+from app.application.documents.chunking.llm_cleaner import LLMDocumentCleaner
 
 
 class DocumentUseCase:
@@ -30,6 +31,9 @@ class DocumentUseCase:
             ],
             strip_headers=False,
         )
+        
+        # Khởi tạo bộ lọc rác LLM
+        self.llm_cleaner = LLMDocumentCleaner()
 
     def sync_documents(self) -> str:
         """
@@ -56,8 +60,12 @@ class DocumentUseCase:
             # 2. Cắt tài liệu thành các Parent Chunks dựa trên Markdown
             md_split_docs = self.markdown_splitter.split_text(doc.page_content)
 
+            # 2.5 Dọn rác bằng LLM cho các chunks vừa sinh ra
+            print(f"🧹 Đang gọi LLM (gpt-4o-mini) dọn rác cho {len(md_split_docs)} Parent Chunks...")
+            clean_md_docs = self.llm_cleaner.clean_documents(md_split_docs)
+
             # 3. Gắn metadata chi tiết cho từng Parent Chunk
-            for md_doc in md_split_docs:
+            for md_doc in clean_md_docs:
                 enriched_doc = self._enrich_metadata(
                     md_doc, source_file, file_id, file_name
                 )

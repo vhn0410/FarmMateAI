@@ -21,6 +21,35 @@ from app.core.config import settings
 from app.application.documents.chunking.parent_document_chunker import ParentDocumentChunker
 from app.application.documents.chunking.semantic_chunker import SemanticDocumentChunker
 from app.application.documents.chunking.advanced_llm_chunker import AdvancedLLMChunker
+from app.application.documents.chunking.llm_cleaner import LLMDocumentCleaner
+from langchain_core.documents import Document
+
+class CleanedParentDocumentChunker:
+    def __init__(self):
+        self.cleaner = LLMDocumentCleaner(max_workers=2)
+        self.pdr = ParentDocumentChunker()
+        
+    def chunk(self, text: str, source: str = "Unknown") -> List[Document]:
+        # Tái tạo lại logic của UseCase để đánh giá
+        # 1. Cắt thành Parent Chunks
+        parent_docs = self.pdr.markdown_splitter.split_text(text)
+        # 2. Dọn rác
+        cleaned_parents = self.cleaner.clean_documents(parent_docs)
+        
+        # 3. Chạy phần child splitting giống PDR
+        child_docs = []
+        import uuid
+        for parent in cleaned_parents:
+            parent_id = str(uuid.uuid4())
+            parent.metadata["source"] = source
+            parent.metadata["chunk_type"] = "parent"
+            parent.metadata["parent_id"] = parent_id
+            children = self.pdr.child_splitter.split_documents([parent])
+            for child in children:
+                child.metadata["chunk_type"] = "child"
+                child.metadata["parent_id"] = parent_id
+                child_docs.append(child)
+        return child_docs
 
 LLM = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key, base_url=settings.openai_api_base, temperature=0)
 
@@ -101,6 +130,7 @@ def main():
     
     methods = {
         "Parent Document Chunking": ParentDocumentChunker(),
+        "LLM-Cleaned PDR": CleanedParentDocumentChunker(),
         "Semantic Chunking": SemanticDocumentChunker(),
         "Advanced LLM Chunking": AdvancedLLMChunker()
     }
