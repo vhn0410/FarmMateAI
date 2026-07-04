@@ -59,10 +59,12 @@ def stream_knowledge_base_file(file_id: str):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
 
+    import urllib.parse
+    encoded_filename = urllib.parse.quote(file_id)
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename={file_id}"}
+        headers={"Content-Disposition": f"inline; filename=\"document.pdf\"; filename*=utf-8''{encoded_filename}"}
     )
 
 

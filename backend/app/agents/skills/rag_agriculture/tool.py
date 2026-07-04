@@ -31,9 +31,9 @@ class AgricultureRAGSkill(BaseSkill):
         self.vector_store_provider = vector_store_provider
         self.llm_provider = llm_provider
 
-        # Initialize Parent document Retriever
+        # Initialize Parent document Retriever (Đã tích hợp sẵn Cross-Encoder Reranker)
         logging.info(
-            "Initializing Postgres Parent document Retriever (Vector + FTS)..."
+            "Initializing Postgres Parent document Retriever (Vector + FTS + Reranker)..."
         )
         self.retriever = self.vector_store_provider.get_parent_document_retriever()
 
@@ -131,6 +131,7 @@ class AgricultureRAGSkill(BaseSkill):
                     "content_snippet": doc.page_content[:200],  # For UI
                     "full_content": doc.page_content,  # For Evaluation
                     "chunk_id": metadata.get("chunk_id", ""),
+                    "cross_encoder_score": metadata.get("cross_encoder_score"),
                 }
                 sources.append(source_obj)
 

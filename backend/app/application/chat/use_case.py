@@ -301,7 +301,23 @@ class ChatUseCase:
             ):
                 kind = event["event"]
 
-                if kind == "on_tool_start":
+                if kind == "on_chain_start" and event.get("name") in ["router", "data_gatherer", "rag"]:
+                    is_inside_tool = True
+                    node_name = event.get("name")
+                    if node_name == "router":
+                        action_msg = "Phân tích yêu cầu (Routing)..."
+                    elif node_name == "data_gatherer":
+                        action_msg = "Thu thập dữ liệu trạm/mùa vụ..."
+                    else:
+                        action_msg = "Tra cứu tài liệu kỹ thuật (RAG)..."
+                    yield f"data: {json.dumps({'event': 'status', 'message': action_msg})}\n\n"
+
+                elif kind == "on_chain_end" and event.get("name") in ["router", "data_gatherer", "rag"]:
+                    is_inside_tool = False
+                    yield f"data: {json.dumps({'event': 'status', 'message': 'Đã hoàn tất xử lý, đang tổng hợp...'})}\n\n"
+                    
+                # Vẫn giữ lại on_tool_start nếu sau này dùng AgentExecutor bên trong Node
+                elif kind == "on_tool_start":
                     is_inside_tool = True
                     tool_name = event.get("name", "công cụ")
                     yield f"data: {json.dumps({'event': 'status', 'message': f'Looking up ({tool_name})...'})}\n\n"

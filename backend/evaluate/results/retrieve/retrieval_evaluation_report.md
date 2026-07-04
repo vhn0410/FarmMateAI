@@ -6,6 +6,7 @@
 
 | Phương pháp Truy xuất | Thời gian đánh giá (s) | Precision (%) | Recall (%) |
 |-----------------------|------------------------|---------------|------------|
-| Pure Vector Search (FAISS) | 82.02 | **87.5%** | **62.5%** |
-| Pure Keyword Search (BM25) | 80.67 | **90.0%** | **82.5%** |
-| Hybrid Search (RRF 50/50) | 79.62 | **97.5%** | **77.5%** |
+| Pure Vector Search (FAISS) | 77.16 | **87.5%** | **62.5%** |
+| Pure Keyword Search (BM25) | 76.69 | **90.0%** | **82.5%** |
+| Hybrid Search (RRF 50/50) | 75.35 | **97.5%** | **77.5%** |
+| Production Hybrid + Reranker | 134.72 | **100.0%** | **95.0%** |

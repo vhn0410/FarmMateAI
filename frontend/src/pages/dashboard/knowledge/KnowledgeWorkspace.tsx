@@ -83,6 +83,89 @@ export const KnowledgeWorkspace: React.FC = () => {
     };
   }, [isDragging]);
 
+  const handleSourceClick = (source: any) => {
+    setViewMode('markdown');
+    
+    setTimeout(() => {
+      const fullNorm = (source.full_content || source.content_snippet || '')
+        .replace(/[*_~`#>-]/g, '')
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .trim();
+
+      if (!fullNorm) return;
+
+      const allElements = document.querySelectorAll('.prose *');
+      const blockTags = ['P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH', 'BLOCKQUOTE'];
+      
+      // Bước 1: Thu thập tất cả các thẻ khớp nội dung
+      const matches: { el: HTMLElement; index: number; textLen: number }[] = [];
+      
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i] as HTMLElement;
+        if (!blockTags.includes(el.tagName)) continue;
+
+        const textNorm = (el.textContent || '')
+          .replace(/[*_~`#>-]/g, '')
+          .replace(/\s+/g, ' ')
+          .toLowerCase()
+          .trim();
+        
+        // Điều kiện: đoạn text > 20 ký tự và nằm gọn trong chunk
+        if (textNorm.length > 20 && fullNorm.includes(textNorm)) {
+          matches.push({ el, index: i, textLen: textNorm.length });
+        }
+      }
+
+      if (matches.length === 0) return;
+
+      // Bước 2: Gom cụm (Clustering) các thẻ nằm gần nhau trong DOM
+      // (Bởi vì một chunk là 1 khối liên tục, còn Header/Footer lặp lại sẽ nằm rải rác)
+      const clusters: (typeof matches)[] = [];
+      let currentCluster = [matches[0]];
+
+      for (let i = 1; i < matches.length; i++) {
+        const prev = matches[i - 1];
+        const curr = matches[i];
+        // Nếu 2 thẻ cách nhau không quá 5 node DOM, coi như cùng 1 khối
+        if (curr.index - prev.index <= 5) {
+          currentCluster.push(curr);
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = [curr];
+        }
+      }
+      clusters.push(currentCluster);
+
+      // Bước 3: Chọn Cụm có tổng lượng chữ lớn nhất (chắc chắn là nội dung thực sự, không phải Header/Footer lặp lại)
+      let bestCluster = clusters[0];
+      let maxScore = 0;
+      for (const cluster of clusters) {
+        const score = cluster.reduce((sum, item) => sum + item.textLen, 0);
+        if (score > maxScore) {
+          maxScore = score;
+          bestCluster = cluster;
+        }
+      }
+
+      // Bước 4: Cuộn đến thẻ đầu tiên của Cụm tốt nhất và Highlight toàn bộ Cụm
+      if (bestCluster.length > 0) {
+        bestCluster[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        bestCluster.forEach(({ el }) => {
+          const originalBg = el.style.backgroundColor;
+          const originalTransition = el.style.transition;
+          el.style.transition = 'background-color 0.5s';
+          el.style.backgroundColor = '#fef08a'; // yellow-200
+          setTimeout(() => { 
+            el.style.backgroundColor = originalBg; 
+            setTimeout(() => { el.style.transition = originalTransition; }, 500);
+          }, 2500);
+        });
+      }
+    }, 400); // Đợi 400ms cho ReactMarkdown render
+  };
+
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -381,9 +464,32 @@ export const KnowledgeWorkspace: React.FC = () => {
                     : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
                 }`}>
                   {msg.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content}
-                    </ReactMarkdown>
+                    <>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div className={`mt-3 pt-3 border-t flex flex-wrap gap-2 ${msg.role === 'user' ? 'border-blue-400' : 'border-gray-100'}`}>
+                          {msg.sources
+                            .filter((src: any) => msg.content.includes(`[${src.id}]`))
+                            .map((src: any) => (
+                            <button
+                              key={src.id}
+                              onClick={() => handleSourceClick(src)}
+                              className={`text-[11px] px-2 py-1 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                                msg.role === 'user' 
+                                  ? 'bg-blue-700/50 text-blue-50 border-blue-500 hover:bg-blue-600' 
+                                  : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100'
+                              }`}
+                              title={src.file_name}
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                              [{src.id}] Source
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="flex gap-1.5 items-center h-5 px-1">
                       {msg.statuses && msg.statuses.length > 0 ? (

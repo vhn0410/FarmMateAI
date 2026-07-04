@@ -5,7 +5,7 @@ from app.domain.interfaces.vector_db import IVectorStoreProvider
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
-from app.infrastructure.vector_store.hybrid_retriever import PostgresHybridRetriever
+from app.infrastructure.vector_store.hybrid_retriever import PostgresHybridRetriever, HybridParentDocumentRetriever
 from sqlalchemy import create_engine, text
 from langchain_classic.retrievers.parent_document_retriever import (
     ParentDocumentRetriever,
@@ -85,7 +85,7 @@ class PGVectorProvider(IVectorStoreProvider):
     # ==========================================
     # PHẦN MỚI: CUNG CẤP PARENT DOCUMENT RETRIEVER
     # ==========================================
-    def get_parent_document_retriever(self, file_ids: list[str] = None) -> ParentDocumentRetriever:
+    def get_parent_document_retriever(self, file_ids: list[str] = None) -> HybridParentDocumentRetriever:
         """
         Trả về PDR object. Dùng chung cho cả Ingestion (Lưu DB) và Retrieval (Chat).
         Nếu có file_ids, sẽ tạo filter để chỉ search trong các file được chỉ định.
@@ -110,13 +110,21 @@ class PGVectorProvider(IVectorStoreProvider):
                     valid_ids.extend([clean_id, f_id, f"{clean_id}.md"])
                 search_kwargs["filter"] = {"file_id": {"$in": valid_ids}}
 
-        return ParentDocumentRetriever(
+        base_retriever = HybridParentDocumentRetriever(
             vectorstore=self._vector_store,
             docstore=self._docstore,
             child_splitter=child_splitter,
-            # parent_splitter=None vì ta đã cắt Parent bằng Markdown từ bên ngoài
-            parent_splitter=None,
             search_kwargs=search_kwargs,
+            connection_string=DB_CONNECTION,
+            embeddings=self._vector_store.embeddings,
+            top_k=15 # Lấy 15 parent docs tốt nhất để đưa vào Cross-Encoder chấm điểm lại
+        )
+        
+        from app.infrastructure.vector_store.reranker import CrossEncoderReranker, CrossEncoderRerankingRetriever
+        reranker = CrossEncoderReranker(top_k=3)
+        return CrossEncoderRerankingRetriever(
+            base_retriever=base_retriever,
+            reranker=reranker
         )
 
     def delete_documents_by_file_id(self, file_id: str) -> None:
