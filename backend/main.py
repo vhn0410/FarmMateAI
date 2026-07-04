@@ -1,12 +1,22 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.api.v1.router import api_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.infrastructure.db.init_db import initialize_database
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Khởi tạo DB tự động (chỉ tạo bảng nếu chưa có, không xóa dữ liệu)
+    initialize_database()
+    yield
+    # Cleanup (nếu cần giải phóng tài nguyên)
 
 # Khởi tạo ứng dụng FastAPI
 app = FastAPI(
     title="FarmMate AI API",
     description="Hệ thống Backend AI tư vấn nông nghiệp",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
