@@ -66,3 +66,12 @@ class CrossEncoderRerankingRetriever(BaseRetriever):
         
         print(f"✅ RERANKER Đã chấm điểm {len(docs)} tài liệu, chọn ra top {len(reranked_docs)}")
         return reranked_docs
+
+    def add_documents(self, documents: List[Document], **kwargs) -> List[str]:
+        """
+        Delegate add_documents to the underlying base_retriever 
+        (e.g., ParentDocumentRetriever) so that document ingestion works normally.
+        """
+        if hasattr(self.base_retriever, "add_documents"):
+            return self.base_retriever.add_documents(documents, **kwargs)
+        raise NotImplementedError("base_retriever does not support add_documents")
