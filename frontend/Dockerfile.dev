@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Cài đặt dependencies
+COPY package.json package-lock.json ./
+RUN npm install
+
+# Ở môi trường Dev, code sẽ được mount từ thư mục máy gốc vào trong container
+# Do đó ta không cần copy source code
+
+EXPOSE 5173
+
+# Chạy Vite Dev Server với cờ --host để public ra ngoài network của container
+CMD ["npm", "run", "dev", "--", "--host"]

@@ -1,0 +1,29 @@
+FROM python:3.14-slim
+
+# Cài đặt uv từ image chính thức
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Thiết lập thư mục làm việc
+WORKDIR /app
+
+# Cài đặt các thư viện hệ thống cần thiết (cho psycopg2 và scikit-network C++ extensions)
+RUN apt-get update && apt-get install -y libpq-dev gcc g++ python3-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy các file quản lý thư viện trước để tận dụng Docker cache
+COPY pyproject.toml uv.lock ./
+
+# Khởi tạo môi trường ảo và cài đặt TOÀN BỘ thư viện (bao gồm cả dev dependencies)
+RUN uv sync --frozen
+
+# Ở môi trường Dev, source code sẽ được mount thông qua docker-compose volume
+# Nên ta không cần COPY . . ở đây để tránh dư thừa (mặc dù copy cũng không sao)
+
+# Thiết lập biến môi trường
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app"
+
+# Expose port 8000
+EXPOSE 8000
+
+# Chạy FastAPI thông qua uvicorn với cờ --reload để tự động cập nhật khi sửa code
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
