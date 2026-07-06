@@ -35,4 +35,4 @@ app.include_router(api_router, prefix="/api/v1")
 # Một API nhỏ để kiểm tra server có đang chạy hay không
 @app.get("/")
 def health_check():
-    return {"status": "ok", "message": "Backend FarmMate AI đang hoạt động tưng bừng!"}
+    return {"status": "ok", "message": "Backend FarmMate AI is running!"}

@@ -28,9 +28,12 @@ class LocalFileSystemProvider(IDocumentProvider):
         """Trả về danh sách các file PDF hiện có trong hệ thống."""
         files = []
         for pdf_path in self.pdf_dir.glob("*.pdf"):
+            stem = pdf_path.stem
+            is_processed = (self.processed_dir / f"{stem}.md").exists()
             files.append({
                 "id": pdf_path.name,
-                "name": pdf_path.name
+                "name": pdf_path.name,
+                "status": "ready" if is_processed else "processing"
             })
         # Sắp xếp theo thời gian tạo mới nhất
         files.sort(key=lambda x: (self.pdf_dir /
@@ -59,6 +62,16 @@ class LocalFileSystemProvider(IDocumentProvider):
         # Sanitize tên file để tránh lỗi thư mục
         safe_name = file_name.replace(" ", "_")
         pdf_path = self.pdf_dir / safe_name
+
+        # Xóa MD cũ nếu có (trường hợp user upload đè file trùng tên)
+        stem = pdf_path.stem
+        md_file = self.md_dir / f"{stem}.md"
+        if md_file.exists():
+            md_file.unlink()
+            
+        processed_file = self.processed_dir / f"{stem}.md"
+        if processed_file.exists():
+            processed_file.unlink()
 
         with open(pdf_path, "wb") as f:
             f.write(file_bytes)

@@ -3,6 +3,7 @@ import { axiosClient } from './axiosClient';
 export interface KnowledgeFile {
   id: string;
   name: string;
+  status?: 'ready' | 'processing';
 }
 
 export const knowledgeService = {
@@ -29,6 +30,11 @@ export const knowledgeService = {
   },
   getFileChunks: async (fileId: string): Promise<any[]> => {
     const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/chunks`);
+    return response.data.data;
+  },
+
+  getFileGraph: async (fileId: string): Promise<{nodes: any[], links: any[]}> => {
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/graph`);
     return response.data.data;
   },
   getFileStreamUrl: async (fileId: string): Promise<string> => {

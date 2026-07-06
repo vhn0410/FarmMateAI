@@ -104,7 +104,8 @@ async def upload_knowledge_base_file(
         
         uploaded_file = {
             "id": saved_name,
-            "name": saved_name
+            "name": saved_name,
+            "status": "processing"
         }
         return {"status": "success", "data": uploaded_file}
     except Exception as e:
@@ -145,3 +146,11 @@ async def delete_knowledge_base_file(
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/knowledge-base/files/{file_id}/graph")
+def get_knowledge_base_file_graph(file_id: str):
+    """Lấy dữ liệu Neo4j Knowledge Graph của file PDF."""
+    from app.infrastructure.vector_store.graph_provider import Neo4jGraphProvider
+    graph_provider = Neo4jGraphProvider()
+    graph_data = graph_provider.get_graph_by_file_id(file_id)
+    return {"status": "success", "data": graph_data}

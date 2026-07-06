@@ -29,6 +29,28 @@ services:
     networks:
       - farmmate_net
 
+  neo4j:
+    image: neo4j:5
+    container_name: farmmate_neo4j_dev
+    ports:
+      - "7474:7474" # HTTP port for Neo4j Browser
+      - "7687:7687" # Bolt port
+    environment:
+      - NEO4J_AUTH=neo4j/farmmatepassword
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      # Allow APOC plugins if needed in the future
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - farmmate_net
+
 networks:
   farmmate_net:
     driver: bridge
+
+volumes:
+  neo4j_data:

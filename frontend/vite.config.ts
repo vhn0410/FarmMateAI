@@ -8,6 +8,9 @@ export default defineConfig({
   server: {
     host: true, // Lắng nghe trên mọi IP
     allowedHosts: true, // Cho phép các host bên ngoài như ngrok truy cập
+    watch: {
+      usePolling: true, // Bật tính năng này để HMR hoạt động tốt trên Docker/Windows
+    },
     proxy: {
       '/api': {
         target: process.env.VITE_API_URL || 'http://backend:8000',

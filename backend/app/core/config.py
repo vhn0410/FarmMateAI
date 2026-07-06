@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # THÊM DÒNG NÀY VÀO:
     jwt_secret_key: str = "123456"
 
+    # Neo4j Graph Configuration
+    neo4j_uri: str = "bolt://neo4j:7687"
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = "farmmatepassword"
+
     # Application Settings
     environment: str = "development"
     debug: bool = False

@@ -2,7 +2,8 @@ from typing import List, Any
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from app.infrastructure.db.session import engine
 import json
 import re
 from langchain_classic.retrievers.parent_document_retriever import ParentDocumentRetriever
@@ -64,7 +65,6 @@ class PostgresHybridRetriever(BaseRetriever):
             LIMIT :top_k
         """
         # 3. Kết nối DB và thực thi
-        engine = create_engine(self.connection_string, echo=True)
         docs = []
 
         try:
@@ -178,7 +178,6 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
             LIMIT 50
         """
 
-        engine = create_engine(self.connection_string, echo=False)
         child_docs = []
         
         try:
