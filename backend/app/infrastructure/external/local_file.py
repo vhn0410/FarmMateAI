@@ -44,6 +44,10 @@ class LocalFileSystemProvider(IDocumentProvider):
         """Lấy đường dẫn tuyệt đối của một file PDF."""
         return self.pdf_dir / file_name
 
+    def check_pdf_exists(self, file_name: str) -> bool:
+        """Kiểm tra file PDF có tồn tại cục bộ không."""
+        return self.get_pdf_path(file_name).exists()
+
     def get_md_path(self, file_name: str) -> Path:
         """Lấy đường dẫn tuyệt đối của một file MD."""
         stem = Path(file_name).stem

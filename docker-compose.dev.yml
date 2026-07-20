@@ -10,9 +10,14 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - ./backend:/app  # Hot-reload code
-      - /app/.venv      # Tránh đè môi trường ảo trong container
+      - backend_venv:/app/.venv      # Tránh đè môi trường ảo trong container
+      - uv_cache:/root/.cache/uv
+    command: bash -c "uv sync && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     networks:
       - farmmate_net
 
@@ -25,7 +30,9 @@ services:
       - "5173:5173"     # Vite default port
     volumes:
       - ./frontend:/app # Hot-reload UI
-      - /app/node_modules # Tránh đè node_modules trong container
+      - frontend_node_modules:/app/node_modules # Tránh đè node_modules trong container
+      - npm_cache:/root/.npm
+    command: sh -c "npm install && npm run dev -- --host"
     networks:
       - farmmate_net
 
@@ -54,3 +61,7 @@ networks:
 
 volumes:
   neo4j_data:
+  backend_venv:
+  frontend_node_modules:
+  uv_cache:
+  npm_cache:

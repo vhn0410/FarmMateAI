@@ -44,13 +44,21 @@ class GraphExtractor:
             "PREVENTS"        # FarmingTechnique PREVENTS Disease
         ]
 
+        # Instructions bổ sung để ngăn chặn LLM hallucinate (zero-shot limitation)
+        additional_instructions = (
+            "IMPORTANT: Do NOT extract document titles, organization names, people's names (e.g. starting with Ts., Pgs., Mr.), "
+            "acronyms, or generic terms as 'Crop' or 'FarmingTechnique'. "
+            "ONLY extract genuine, universally recognized agricultural entities. Keep node IDs concise and precise."
+        )
+
         # Khởi tạo Graph Transformer
         self.transformer = LLMGraphTransformer(
             llm=self.llm,
             allowed_nodes=allowed_nodes,
             allowed_relationships=allowed_relationships,
             node_properties=["description"],
-            relationship_properties=["description"]
+            relationship_properties=["description"],
+            additional_instructions=additional_instructions
         )
 
     def extract_graph_documents(self, documents: List[Document]) -> List[Any]:
@@ -58,12 +66,52 @@ class GraphExtractor:
         Chuyển đổi danh sách Document text thành GraphDocument (chứa nodes và edges).
         Bổ sung Provenance (thêm chunk_id và source vào thuộc tính của relationships).
         """
-        logger.info(f"Bắt đầu trích xuất Graph cho {len(documents)} chunks...")
+        print(f"Bắt đầu trích xuất Graph cho {len(documents)} chunks...", flush=True)
         
-        # Gọi LLMGraphTransformer để trích xuất (tốn thời gian và chi phí API)
         try:
-            graph_documents = self.transformer.convert_to_graph_documents(documents)
+            raw_graph_documents = []
+            for i, doc in enumerate(documents):
+                print(f"Đang trích xuất Graph cho chunk {i+1}/{len(documents)}...", flush=True)
+                try:
+                    result = self.transformer.convert_to_graph_documents([doc])
+                    if result:
+                        raw_graph_documents.extend(result)
+                except Exception as chunk_e:
+                    print(f"Lỗi ở chunk {i+1}: {chunk_e}", flush=True)
+                    
+            graph_documents = []
             
+            # Post-processing: Filter out noisy nodes
+            forbidden_keywords = ["sổ tay", "quyết định", "bộ nông nghiệp", "ts.", "pgs", "quy trình", "đề án"]
+            
+            for i, graph_doc in enumerate(raw_graph_documents):
+                valid_nodes = []
+                deleted_node_ids = set()
+                
+                # 1. Filter Nodes
+                for node in graph_doc.nodes:
+                    node_id_lower = node.id.lower()
+                    # Condition to delete: > 40 chars, or contains forbidden keyword, or is entirely uppercase (often noisy acronyms, but we allow short ones like SRI, IPM if they are known)
+                    is_too_long = len(node.id) > 40
+                    has_forbidden = any(kw in node_id_lower for kw in forbidden_keywords)
+                    
+                    if is_too_long or has_forbidden:
+                        deleted_node_ids.add(node.id)
+                        print(f"Filtered out noisy node: {node.id}", flush=True)
+                    else:
+                        valid_nodes.append(node)
+                
+                # 2. Filter Relationships pointing to deleted nodes
+                valid_relationships = []
+                for rel in graph_doc.relationships:
+                    if rel.source.id not in deleted_node_ids and rel.target.id not in deleted_node_ids:
+                        valid_relationships.append(rel)
+                
+                # Update the graph document
+                graph_doc.nodes = valid_nodes
+                graph_doc.relationships = valid_relationships
+                graph_documents.append(graph_doc)
+                
             # Gắn Provenance Tracking
             for i, graph_doc in enumerate(graph_documents):
                 original_doc = documents[i]
@@ -78,8 +126,8 @@ class GraphExtractor:
                     rel.properties["file_id"] = file_id
                     rel.properties["chunk_id"] = chunk_id
 
-            logger.info(f"Đã trích xuất thành công {len(graph_documents)} Graph Documents.")
+            print(f"Đã trích xuất thành công {len(graph_documents)} Graph Documents.", flush=True)
             return graph_documents
         except Exception as e:
-            logger.error(f"Lỗi khi trích xuất Graph: {e}")
+            print(f"Lỗi khi trích xuất Graph: {e}", flush=True)
             return []

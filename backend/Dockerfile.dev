@@ -9,14 +9,8 @@ WORKDIR /app
 # Cài đặt các thư viện hệ thống cần thiết (cho psycopg2 và scikit-network C++ extensions)
 RUN apt-get update && apt-get install -y libpq-dev gcc g++ python3-dev && rm -rf /var/lib/apt/lists/*
 
-# Copy các file quản lý thư viện trước để tận dụng Docker cache
-COPY pyproject.toml uv.lock ./
-
-# Khởi tạo môi trường ảo và cài đặt TOÀN BỘ thư viện (bao gồm cả dev dependencies)
-RUN uv sync --frozen
-
-# Ở môi trường Dev, source code sẽ được mount thông qua docker-compose volume
-# Nên ta không cần COPY . . ở đây để tránh dư thừa (mặc dù copy cũng không sao)
+# Lưu ý: Không chạy uv sync ở đây để tránh bị ghi đè bởi anonymous volume.
+# Việc cài đặt thư viện sẽ được thực hiện tự động lúc khởi động container (xem docker-compose.dev.yml).
 
 # Thiết lập biến môi trường
 ENV PATH="/app/.venv/bin:$PATH"
@@ -25,5 +19,5 @@ ENV PYTHONPATH="/app"
 # Expose port 8000
 EXPOSE 8000
 
-# Chạy FastAPI thông qua uvicorn với cờ --reload để tự động cập nhật khi sửa code
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Lệnh khởi động mặc định (sẽ bị docker-compose command ghi đè)
+CMD ["bash", "-c", "uv sync && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]

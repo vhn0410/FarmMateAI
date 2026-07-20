@@ -179,7 +179,7 @@ class DocumentUseCase:
                 if file_id:
                     # Kiểm tra lại một lần nữa: Nếu PDF gốc bị xóa TRONG QUÁ TRÌNH lưu DB
                     # => Đây là "Tài liệu Zombie", ta phải lập tức Scrub (xóa) nó khỏi DB!
-                    if not self.provider.get_pdf_path(f"{file_id}.pdf").exists():
+                    if not self.provider.check_pdf_exists(f"{file_id}.pdf"):
                         print(f"⚠️ Phát hiện file {file_id} bị xóa ngang lúc lưu DB. Tiến hành dọn dẹp Zombie Chunks!", flush=True)
                         self.vector_store_provider.delete_documents_by_file_id(file_id)
                         # Dọn luôn file MD

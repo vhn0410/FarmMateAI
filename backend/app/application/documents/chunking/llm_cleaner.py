@@ -14,7 +14,7 @@ class LLMDocumentCleaner:
     Sử dụng LLM tốc độ cao (gpt-4o-mini) để dọn dẹp các rác sinh ra từ PDF (Header/Footer, số trang).
     Chạy xử lý song song (Concurrency) để tối ưu thời gian.
     """
-    def __init__(self, model_name="gpt-4o-mini", max_workers=5):
+    def __init__(self, model_name="gpt-4o-mini", max_workers=1):
         self.llm = ChatOpenAI(
             model=model_name,
             api_key=settings.openai_api_key,
@@ -39,8 +39,10 @@ class LLMDocumentCleaner:
         
         self.chain = self.prompt | self.llm
 
-    def _clean_single_document(self, doc: Document) -> Document:
+    def _clean_single_document(self, doc: Document, index: int, total: int) -> Document:
         """Làm sạch 1 Document."""
+        print(f"Đang dọn rác chunk {index+1}/{total}...", flush=True)
+        time.sleep(1) # Rate limit avoidance
         for attempt in range(5):
             try:
                 if not doc.page_content.strip():
@@ -54,13 +56,13 @@ class LLMDocumentCleaner:
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg or "Too Many Requests" in error_msg or "RateLimitError" in error_msg:
-                    sleep_time = 2 ** attempt
-                    logger.warning(f"Rate limit hit (429). Retrying in {sleep_time}s... (Attempt {attempt+1}/5)")
+                    sleep_time = 4 ** attempt
+                    print(f"Rate limit hit (429) ở chunk {index+1}. Retrying in {sleep_time}s... (Attempt {attempt+1}/5)", flush=True)
                     time.sleep(sleep_time)
                 else:
-                    logger.error(f"Lỗi khi clean document: {e}")
+                    print(f"Lỗi khi clean document {index+1}: {e}", flush=True)
                     return doc # Nếu lỗi khác thì trả về doc gốc (Fallback)
-        logger.error(f"Đã hết số lần thử lại (5 lần) cho chunk này. Fallback về doc gốc.")
+        print(f"Đã hết số lần thử lại (5 lần) cho chunk {index+1}. Fallback về doc gốc.", flush=True)
         return doc
 
     def clean_documents(self, docs: List[Document]) -> List[Document]:
@@ -71,13 +73,14 @@ class LLMDocumentCleaner:
         if not docs:
             return []
             
-        logger.info(f"Bắt đầu quy trình LLM Cleanup cho {len(docs)} chunks...")
+        print(f"Bắt đầu quy trình LLM Cleanup cho {len(docs)} chunks...", flush=True)
         results = [None] * len(docs)
+        total_docs = len(docs)
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Map index vào Future để khi nhận kết quả có thể điền lại đúng vị trí
             future_to_index = {
-                executor.submit(self._clean_single_document, doc): i 
+                executor.submit(self._clean_single_document, doc, i, total_docs): i 
                 for i, doc in enumerate(docs)
             }
             
@@ -87,10 +90,10 @@ class LLMDocumentCleaner:
                     cleaned_doc = future.result()
                     results[index] = cleaned_doc
                 except Exception as exc:
-                    logger.error(f"Chunk thứ {index} sinh ra exception: {exc}")
+                    print(f"Chunk thứ {index+1} sinh ra exception: {exc}", flush=True)
                     results[index] = docs[index] # Fallback
                     
         # Lọc ra các Document hợp lệ (có nội dung)
         final_docs = [doc for doc in results if doc and doc.page_content.strip()]
-        logger.info(f"LLM Cleanup hoàn tất. Giữ lại {len(final_docs)} chunks sạch.")
+        print(f"LLM Cleanup hoàn tất. Giữ lại {len(final_docs)} chunks sạch.", flush=True)
         return final_docs
