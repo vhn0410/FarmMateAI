@@ -100,22 +100,23 @@ class DocumentUseCase:
                 return "Thành công"
             else:
                 # KÍCH HOẠT ROLLBACK (SAGA PATTERN)
-                print("⚠️ Lỗi khi lưu Vector DB. Tiến hành Rollback Knowledge Graph và File vật lý...", flush=True)
+                print("⚠️ Lỗi khi lưu Vector DB. Tiến hành Rollback toàn diện (Graph, Vector DB, File)...", flush=True)
                 for file_id in processed_file_ids:
                     if file_id:
                         try:
-                            self.graph_provider.delete_graph_by_file_id(file_id)
+                            self.delete_document(file_id)
                         except Exception as rb_e:
-                            print(f"❌ Lỗi khi rollback Graph cho {file_id}: {rb_e}", flush=True)
-                        # Rollback physical file so it doesn't show in UI
-                        self.provider.delete_file(file_id)
+                            print(f"❌ Lỗi khi rollback cho {file_id}: {rb_e}", flush=True)
                 return "Lỗi trong quá trình lưu Database, đã Rollback an toàn"
         except Exception as e:
-            # Bắt lỗi nếu Graph lưu thất bại, tiến trình dừng lại luôn
-            print(f"❌ Lỗi trong quá trình Ingestion: {str(e)}. Đang Rollback File vật lý...", flush=True)
+            # Bắt lỗi nếu quá trình lưu thất bại, tiến trình dừng lại luôn
+            print(f"❌ Lỗi trong quá trình Ingestion: {str(e)}. Đang Rollback toàn diện...", flush=True)
             for file_id in processed_file_ids:
                 if file_id:
-                    self.provider.delete_file(file_id)
+                    try:
+                        self.delete_document(file_id)
+                    except Exception as rb_e:
+                        print(f"❌ Lỗi khi rollback cho {file_id}: {rb_e}", flush=True)
             return "Lỗi trong quá trình lưu Database"
 
     def _extract_file_id(self, source_file: str) -> str:
