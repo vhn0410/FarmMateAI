@@ -12,7 +12,7 @@ skill = AgricultureRAGSkill(v, l)
 
 print("Retriever instance:", skill.retriever.__class__.__name__)
 print("Running query...")
-res = skill.run("Cách phòng trừ rầy nâu hại lúa")
+res = skill.run("How to control brown planthopper infestations in rice")
 print("Top Sources extracted:")
 for s in res.metadata.get("top_sources", []):
     print("-", s["file_name"], "Score:", s.get("cross_encoder_score", "N/A"))

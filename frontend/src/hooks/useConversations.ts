@@ -12,7 +12,7 @@ export const useConversations = () => {
   const fetchConversations = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Gọi service, chắc chắn 100% nhận về mảng Conversation[]
+      // Call the service and expect a Conversation[] array
       const data = await conversationService.getConversations();
       setConversations(data);
     } catch (error) {
@@ -22,16 +22,16 @@ export const useConversations = () => {
     }
   }, []);
 
-  // Tự động tải danh sách khi mở trang
+  // Automatically load the list when the page opens
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Xóa hội thoại
+  // Delete a conversation
   const deleteConversation = useCallback(async (id: string) => {
     try {
       await conversationService.deleteConversation(id);
-      // Xóa thành công thì refetch hoặc loại khỏi danh sách
+      // If deletion succeeds, either refetch or remove it from the list
       setConversations(prev => prev.filter(c => c.id !== id));
       return true;
     } catch (error) {

@@ -23,7 +23,7 @@ class ChatUseCase:
         self.db = db
 
     async def process_chat(self, request: ChatRequest, current_user=None, token: str = None) -> ChatResponse:
-        """Xử lý luồng chat chính với đầy đủ metadata."""
+        """Handle the main chat flow with full metadata."""
         try:
             start_time = time.time()
 
@@ -58,15 +58,15 @@ class ChatUseCase:
             )
 
         except Exception as e:
-            print(f"Lỗi Use Case Chat: {e}")
+            print(f"Chat use case error: {e}")
             return self._build_error_response(
                 session_id=request.session_id, start_time=start_time
             )
 
     def _invoke_agent(self, query: str, token: str = None, current_user=None):
-        """Reset cache và gọi Agent xử lý câu hỏi (Luồng đồng bộ)."""
+        """Reset the cache and call the agent to process the question (synchronous flow)."""
 
-        # 1. TẠO CHIẾC HỘP RIÊNG CHO REQUEST NÀY
+        # 1. CREATE A REQUEST-SPECIFIC STATE CONTAINER
         my_state = {}
         if token:
             my_state["access_token"] = token
@@ -80,13 +80,13 @@ class ChatUseCase:
             for st in stations:
                 user_context_text += f"- Station '{st.get('name', 'Unknown')}' (ID: {st.get('stationId', 'Unknown')}).\n"
 
-        # 2. Gọi Agent chạy
+        # 2. Run the agent
         result = self.agent.invoke(
             {"input": query, "chat_history": [], "user_context": user_context_text}
         )
-        bot_answer = result.get("output", "Xin lỗi, tôi không thể trả lời lúc này.")
+        bot_answer = result.get("output", "Sorry, I cannot answer at the moment.")
 
-        # 3. LẤY KẾT QUẢ TỪ CHIẾC HỘP SAU KHI TOOL CHẠY XONG
+        # 3. RETRIEVE THE RESULT FROM THE STATE CONTAINER AFTER THE TOOL HAS FINISHED
         skill_result = my_state.get("skill_result")
 
         # (Đã xóa bỏ hoàn toàn vòng lặp tìm intermediate_steps cũ rườm rà)
@@ -94,9 +94,9 @@ class ChatUseCase:
         return bot_answer, skill_result
 
     def _extract_metadata(self, bot_answer: str, skill_result: any):
-        """Trích xuất và mapping dữ liệu từ kết quả của Skill."""
+        """Extract and map data from the skill result."""
 
-        # Nếu skill_result bị rỗng, lập tức trả về mảng rỗng
+        # If skill_result is empty, return empty arrays immediately
         if not skill_result:
             return [], [], None
 
@@ -108,8 +108,8 @@ class ChatUseCase:
             skill_result.metadata.get("sources", []) if skill_result.metadata else []
         )
 
-        # CHÚ Ý: Nếu hàm extract_sources của response_enhancer bị lỗi,
-        # hãy thử trả về trực tiếp raw_sources ở đây để debug.
+        # Note: if response_enhancer.extract_sources fails,
+        # fall back to the raw sources for debugging.
         try:
             sources = self.response_enhancer.extract_sources(
                 skill_result_metadata=skill_result.metadata,
@@ -117,14 +117,14 @@ class ChatUseCase:
                 skill_name=skill_result.skill_name,
             )
         except Exception as e:
-            print(f"Lỗi extract sources: {e}")
-            # Nếu ResponseEnhancer lỗi, lấy luôn danh sách sources thô
+            print(f"Source extraction error: {e}")
+            # If ResponseEnhancer fails, use the raw source list directly
             sources = raw_sources
 
         return sources, agent_actions, skill_tokens
 
     async def _generate_suggestions(self, answer: str, query: str, sources: list):
-        """Sinh câu hỏi gợi ý, tự động bắt lỗi để không làm gián đoạn luồng chính"""
+        """Generate suggested questions and fail gracefully so the main flow is not interrupted."""
 
         suggested_questions = []
         suggested_questions_tokens = None
@@ -137,13 +137,13 @@ class ChatUseCase:
                     llm_provider=self.llm_provider,
                 )
             )
-            # Note: Token usage từ suggested questions có thể capture tùy LLM provider setup
-            # Hiện tại simplified, sẽ improve sau
+            # Note: suggested question token usage may be captured depending on the LLM provider setup.
+            # This is currently simplified and can be improved later.
             suggested_questions_tokens = None
             return suggested_questions, suggested_questions_tokens
         except Exception as e:
             print(f"Error generating suggested questions: {e}")
-            # Fallback: không có suggested questions nhưng response vẫn tiếp tục
+            # Fallback: no suggested questions, but the response still continues
             return [], None
 
     def _build_success_response(
@@ -154,7 +154,7 @@ class ChatUseCase:
         suggested_questions: list,
         metadata: dict,
     ) -> ChatResponse:
-        """Đóng gói JSON cho trường hợp thành công."""
+        """Build the success response payload."""
         return ChatResponse(
             status="success",
             data=ChatData(
@@ -173,7 +173,7 @@ class ChatUseCase:
         )
 
     def _build_error_response(self, session_id: str, start_time: float) -> ChatResponse:
-        """Đóng gói JSON cho trường hợp lỗi."""
+        """Build the error response payload."""
         return ChatResponse(
             status="error",
             data=ChatData(
@@ -203,12 +203,12 @@ class ChatUseCase:
 
         try:
             # =======================================================
-            # PHASE 1: XỬ LÝ CONVERSATION (HỘI THOẠI)
+            # PHASE 1: HANDLE CONVERSATION STATE
             # =======================================================
             conversation_id = request.session_id
 
             if not conversation_id:
-                # TRƯỜNG HỢP 1: Bắt đầu chat mới -> Backend TỰ SINH ID
+                # CASE 1: Start a new chat -> the backend generates the ID
                 new_conv = ConversationModel(
                     id=str(uuid.uuid4()),
                     user_id=current_user.id,
@@ -218,7 +218,7 @@ class ChatUseCase:
                 self.db.commit()
                 conversation_id = new_conv.id
             else:
-                # TRƯỜNG HỢP 2: FE gửi session_id lên -> Bắt buộc phải TỒN TẠI và ĐÚNG CHỦ SỞ HỮU
+                # CASE 2: The frontend sends a session_id -> it must exist and belong to the current user
                 conv = (
                     self.db.query(ConversationModel)
                     .filter(
@@ -230,16 +230,16 @@ class ChatUseCase:
                 )
 
                 if not conv:
-                    # Nếu FE gửi ID bậy bạ, hoặc ID của người khác -> Quăng lỗi ngay!
+                    # If the frontend sends an invalid ID or an ID belonging to another user, reject it immediately
                     raise HTTPException(
                         status_code=404,
-                        detail="Session ID không hợp lệ hoặc bạn không có quyền truy cập hội thoại này.",
+                        detail="The session ID is invalid or you do not have permission to access this conversation.",
                     )
 
             # =======================================================
-            # PHASE 1.5: LẤY LỊCH SỬ CHAT TỪ DATABASE
+            # PHASE 1.5: LOAD CHAT HISTORY FROM THE DATABASE
             # =======================================================
-            # Lấy 10 tin nhắn gần nhất (tránh lấy quá nhiều làm tràn Token của LLM)
+            # Load the 10 most recent messages to avoid sending too much context to the LLM
             past_messages = (
                 self.db.query(MessageModel)
                 .filter(MessageModel.conversation_id == conversation_id)
@@ -248,10 +248,10 @@ class ChatUseCase:
                 .all()
             )
 
-            # Đảo ngược list để trả về đúng thứ tự thời gian (cũ -> mới)
+            # Reverse the list to return it in chronological order (old -> new)
             past_messages.reverse()
 
-            # Chuyển đổi Model Database sang định dạng của LangChain
+            # Convert the database models into LangChain message objects
             chat_history = []
             for msg in past_messages:
                 if msg.sender_type == "user":

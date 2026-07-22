@@ -1,9 +1,9 @@
 // src/application/hooks/useChatbot.ts
 import { useState } from 'react';
 import { ChatService } from '../api/chatService';
-import { ConversationService } from '../api/conversationService'; // Import thêm service
+import { ConversationService } from '../api/conversationService'; // Add the conversation service
 const chatService = new ChatService();
-const conversationService = new ConversationService(); // Khởi tạo service
+const conversationService = new ConversationService(); // Initialize the service
 export interface MessageItem {
   id: string;
   role: 'user' | 'bot';
@@ -41,7 +41,7 @@ export const useChatbot = () => {
             if (msg.id === botMsgId) {
               const currentStatuses = msg.statuses || [];
               if (currentStatuses[currentStatuses.length - 1] !== data.message) {
-                // FIX LỖI Ở ĐÂY: Thêm "as string" để báo cho TypeScript biết chắc chắn nó là string
+                // Fix: add "as string" so TypeScript knows it is definitely a string
                 return { ...msg, statuses: [...currentStatuses, data.message as string] };
               }
             }
@@ -125,20 +125,20 @@ export const useChatbot = () => {
     }
   };
 
-  // BỔ SUNG 1: Hàm tải lịch sử tin nhắn
+  // Additional helper: load message history
   const loadConversation = async (id: string) => {
     setIsHistoryLoading(true);
     try {
       const data = await conversationService.getConversationById(id);
 
-      // Map dữ liệu từ Backend sang chuẩn của UI
+      // Map the backend payload into the UI-friendly format
       if (data && data.messages) {
         const historyMessages: MessageItem[] = data.messages.map(msg => ({
           id: msg.id,
-          // Kiểm tra sender_type: nếu chứa chữ 'user' thì là user, ngược lại là bot
+          // Determine the sender role from sender_type: if it contains 'user' then it is a user, otherwise it is a bot
           role: msg.sender_type.toLowerCase().includes('user') ? 'user' : 'bot',
           content: msg.content,
-          statuses: [] // Tin nhắn cũ thường không cần hiển thị lại trạng thái suy nghĩ
+          statuses: [] // Historical messages usually do not need to show thinking states again
         }));
 
         setMessages(historyMessages);
@@ -151,10 +151,10 @@ export const useChatbot = () => {
     }
   };
 
-  // BỔ SUNG 2: Hàm tạo đoạn chat mới
+  // Additional helper: start a new chat session
   const startNewChat = () => {
-    setMessages([]); // Xóa sạch tin nhắn trên màn hình
-    setSessionId(undefined); // Reset lại ID để Backend tạo session mới
+    setMessages([]); // Clear the visible messages
+    setSessionId(undefined); // Reset the ID so the backend can create a new session
   };
   return { messages, isLoading, isHistoryLoading, sendMessage, sendDocumentMessage, sessionId, loadConversation, startNewChat };
 };

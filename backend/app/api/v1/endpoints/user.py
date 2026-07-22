@@ -4,10 +4,11 @@ from app.core.security import get_current_user
 
 router = APIRouter()
 
+
 @router.get("/me")
 def get_my_profile(current_user: UserModel = Depends(get_current_user)):
     """
-    Frontend sẽ gọi API này ngay sau khi đăng nhập Keycloak thành công.
-    Hàm get_current_user sẽ chạy ngầm và thực hiện đồng bộ (JIT) ngay lập tức!
+    The frontend calls this API immediately after a successful Keycloak login.
+    The get_current_user function resolves the user lazily and synchronously on demand.
     """
     return current_user

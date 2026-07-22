@@ -4,7 +4,7 @@ export interface LoginRequest {
 }
 
 export interface UserProfile {
-  // Giả định các field dựa trên API /api/v1/users/me
+  // Assumed fields based on the /api/v1/users/me API
   id: string;
   username: string;
   full_name: string;

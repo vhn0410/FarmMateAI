@@ -90,15 +90,15 @@ export const KnowledgeWorkspace: React.FC = () => {
   }, [isDragging]);
 
   const handleSourceClick = (source: any) => {
-    // Thay vì dựa vào chunk ID backend (không khớp), ta lưu lại đoạn text của Source
-    // Để GraphViewer tìm kiếm và tô màu tự động các Node xuất hiện trong đoạn text này
+    // Instead of relying on the backend chunk ID (which may not match), store the source text.
+    // This lets the GraphViewer search and highlight nodes that appear in this text automatically.
     const text = source.full_content || source.content_snippet || '';
     setActiveSourceText(text);
     
-    // Đảm bảo không dính stale closure: Chỉ chuyển sang markdown nếu không đang xem graph
+    // Avoid stale closures: switch to markdown only if the graph view is not active
     setViewMode((prev) => prev === 'graph' ? 'graph' : 'markdown');
     
-    // Vẫn gọi setTimeout để highlight markdown ngầm (nếu DOM markdown đang hiển thị)
+    // Still call setTimeout to highlight the markdown view in the background if the DOM is currently showing it
     setTimeout(() => {
       const fullNorm = (source.full_content || source.content_snippet || '')
         .replace(/[*_~`#>-]/g, '')
@@ -111,7 +111,7 @@ export const KnowledgeWorkspace: React.FC = () => {
       const allElements = document.querySelectorAll('.prose *');
       const blockTags = ['P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH', 'BLOCKQUOTE'];
       
-      // Bước 1: Thu thập tất cả các thẻ khớp nội dung
+      // Step 1: collect all matching elements for the content
       const matches: { el: HTMLElement; index: number; textLen: number }[] = [];
       
       for (let i = 0; i < allElements.length; i++) {
@@ -124,7 +124,7 @@ export const KnowledgeWorkspace: React.FC = () => {
           .toLowerCase()
           .trim();
         
-        // Điều kiện: đoạn text > 20 ký tự và nằm gọn trong chunk
+        // Condition: the text is more than 20 characters and remains contained within the chunk
         if (textNorm.length > 20 && fullNorm.includes(textNorm)) {
           matches.push({ el, index: i, textLen: textNorm.length });
         }
@@ -132,15 +132,15 @@ export const KnowledgeWorkspace: React.FC = () => {
 
       if (matches.length === 0) return;
 
-      // Bước 2: Gom cụm (Clustering) các thẻ nằm gần nhau trong DOM
-      // (Bởi vì một chunk là 1 khối liên tục, còn Header/Footer lặp lại sẽ nằm rải rác)
+      // Step 2: cluster nearby matching elements in the DOM
+      // (because a chunk is a continuous block, while repeated headers/footers appear scattered)
       const clusters: (typeof matches)[] = [];
       let currentCluster = [matches[0]];
 
       for (let i = 1; i < matches.length; i++) {
         const prev = matches[i - 1];
         const curr = matches[i];
-        // Nếu 2 thẻ cách nhau không quá 5 node DOM, coi như cùng 1 khối
+        // If two elements are within 5 DOM nodes of each other, treat them as the same block
         if (curr.index - prev.index <= 5) {
           currentCluster.push(curr);
         } else {
@@ -150,7 +150,7 @@ export const KnowledgeWorkspace: React.FC = () => {
       }
       clusters.push(currentCluster);
 
-      // Bước 3: Chọn Cụm có tổng lượng chữ lớn nhất (chắc chắn là nội dung thực sự, không phải Header/Footer lặp lại)
+      // Step 3: select the cluster with the largest text size (likely the actual content rather than repeated header/footer text)
       let bestCluster = clusters[0];
       let maxScore = 0;
       for (const cluster of clusters) {
@@ -161,7 +161,7 @@ export const KnowledgeWorkspace: React.FC = () => {
         }
       }
 
-      // Bước 4: Cuộn đến thẻ đầu tiên của Cụm tốt nhất và Highlight toàn bộ Cụm
+      // Step 4: scroll to the first element of the best cluster and highlight the entire cluster
       if (bestCluster.length > 0) {
         bestCluster[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
@@ -176,7 +176,7 @@ export const KnowledgeWorkspace: React.FC = () => {
           }, 2500);
         });
       }
-    }, 400); // Đợi 400ms cho ReactMarkdown render
+    }, 400); // Wait 400ms for ReactMarkdown to render
   };
 
   const [isUploading, setIsUploading] = useState(false);
@@ -274,10 +274,10 @@ export const KnowledgeWorkspace: React.FC = () => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading || !canChat) return;
     
-    // Luôn luôn dùng API RAG chuyên dụng trong Knowledge Workspace.
-    // Nếu không chọn file (selectedFileIds rỗng), backend sẽ chặn không cho tìm kiếm gì cả.
+    // Always use the dedicated RAG API in the Knowledge Workspace.
+    // If no files are selected (selectedFileIds is empty), the backend will block the search.
     if (sendDocumentMessage) {
-      // Đảm bảo không gửi các file đang processing xuống backend
+      // Make sure files still processing are not sent to the backend
       const readyFileIds = selectedFileIds.filter(id => {
         const file = files.find(f => f.id === id);
         return file && file.status !== 'processing';
@@ -336,7 +336,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
-                {/* Checkbox để chọn file chat */}
+                {/* Checkbox to include the file in the chat filter */}
                 <input 
                   type="checkbox"
                   disabled={file.status === 'processing'}

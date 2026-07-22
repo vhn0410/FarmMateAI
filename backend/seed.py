@@ -10,42 +10,42 @@ from app.infrastructure.db.models import UserModel
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def seed_test_user():
-    # Mở kết nối Database
+    # Open the database connection
     db: Session = SessionLocal()
     try:
         test_username = "nongdan_01"
         test_password = "password123"
 
-        # 1. Kiểm tra xem user đã tồn tại chưa để tránh lỗi trùng lặp
+        # 1. Check whether the user already exists to avoid duplicates
         existing_user = db.query(UserModel).filter(UserModel.username == test_username).first()
         if existing_user:
-            print(f"⚠️ User '{test_username}' đã tồn tại trong CSDL.")
+            print(f"⚠️ User '{test_username}' already exists in the database.")
             return
 
-        # 2. Băm mật khẩu
+        # 2. Hash the password
         hashed_pw = pwd_context.hash(test_password)
 
-        # 3. Tạo User Model
+        # 3. Create the user model
         new_user = UserModel(
             id=str(uuid.uuid4()),
             username=test_username,
             hashed_password=hashed_pw
         )
 
-        # 4. Lưu vào Database
+        # 4. Save to the database
         db.add(new_user)
         db.commit()
         
-        print("✅ Đã nạp dữ liệu thành công!")
+        print("✅ Seed data loaded successfully!")
         print(f"👉 Username: {test_username}")
         print(f"👉 Password: {test_password}")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ Có lỗi xảy ra: {e}")
+        print(f"❌ An error occurred: {e}")
     finally:
         db.close()
 
 if __name__ == "__main__":
-    print("🚀 Đang chạy script nạp dữ liệu test...")
+    print("🚀 Running the test data seeding script...")
     seed_test_user()

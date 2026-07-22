@@ -10,8 +10,8 @@ from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 
 class KnowledgeChatUseCase:
     """
-    Use Case chuyên biệt cho Chat trong phần Knowledge Base.
-    Không lưu trữ lịch sử trò chuyện (stateless) để tối ưu tốc độ và tránh rác Database.
+    Specialized use case for chat in the knowledge base.
+    It does not store conversation history (stateless) to optimize speed and reduce database clutter.
     """
 
     def __init__(self, llm_provider: ILLMProvider):
@@ -21,20 +21,20 @@ class KnowledgeChatUseCase:
         self, request: ChatRequest, current_user, token: str = None
     ) -> AsyncGenerator[str, None]:
         """
-        Stream chat chuyên dụng cho RAG trên các file chỉ định (không dùng Agent).
+        Stream chat specifically for RAG over selected files (without an agent).
         """
 
         try:
-            # 1. Khởi tạo Retriever với bộ lọc file_ids
+            # 1. Initialize the retriever with the file_ids filter
             file_ids = request.file_ids or []
             vector_provider = PGVectorProvider()
             retriever = vector_provider.get_parent_document_retriever(
                 file_ids=file_ids)
 
-            # 2. Lấy Docs trước để gửi source cho client
+            # 2. Retrieve docs first to send sources to the client
             docs = retriever.invoke(request.query)
             
-            # Gửi tín hiệu đang tải và kèm danh sách source
+            # Emit a loading signal along with the source list
             sources = []
             for i, doc in enumerate(docs):
                 sources.append({
@@ -45,16 +45,16 @@ class KnowledgeChatUseCase:
                     "chunk_id": doc.metadata.get("chunk_id", "")
                 })
             yield f"data: {json.dumps({'event': 'sources', 'sources': sources})}\n\n"
-            yield f"data: {json.dumps({'event': 'status', 'message': 'Đang tìm kiếm tài liệu...'})}\n\n"
+            yield f"data: {json.dumps({'event': 'status', 'message': 'Searching documents...'})}\n\n"
 
-            # 3. Tạo Prompt RAG chuẩn có trích dẫn
+            # 3. Build a standard RAG prompt with citations
             context_text = "\n\n".join([f"[Source {i+1}]:\n{doc.page_content}" for i, doc in enumerate(docs)])
             
             system_prompt = (
-                "Bạn là một trợ lý ảo thông minh. Dựa vào các ĐOẠN TÀI LIỆU (Context) dưới đây, "
-                "hãy trả lời câu hỏi của người dùng.\n"
-                "Tuyệt đối KHÔNG BỊA ĐẶT THÔNG TIN. Nếu thông tin không có trong tài liệu, hãy trả lời là bạn không biết.\n"
-                "QUAN TRỌNG: Hãy trích dẫn nguồn bằng cách chèn số đánh dấu ví dụ [1], [2] vào cuối câu hoặc đoạn văn chứa thông tin lấy từ nguồn tương ứng.\n\n"
+                "You are an intelligent virtual assistant. Based on the DOCUMENT SEGMENTS (Context) below, "
+                "answer the user's question.\n"
+                "Do NOT fabricate information. If the information is not in the documents, say that you do not know.\n"
+                "IMPORTANT: Cite the sources by inserting marker numbers such as [1], [2] at the end of the sentence or paragraph that uses information from the corresponding source.\n\n"
                 f"CONTEXT:\n{context_text}"
             )
             prompt = ChatPromptTemplate.from_messages([
@@ -62,7 +62,7 @@ class KnowledgeChatUseCase:
                 ("human", "{input}"),
             ])
 
-            # 4. Tạo Chain bằng LCEL
+            # 4. Create the chain with LCEL
             llm = self.llm_provider.get_llm()
 
             rag_chain = (
@@ -74,13 +74,13 @@ class KnowledgeChatUseCase:
 
             bot_answer = ""
 
-            # 4. Stream kết quả
+            # 4. Stream the result
             async for chunk in rag_chain.astream(request.query):
                 if chunk:
                     bot_answer += chunk
                     yield f"data: {json.dumps({'event': 'token', 'text': chunk})}\n\n"
 
-            # Trả về tín hiệu kết thúc (chỉ trả về session_id cũ nếu có, không tạo session_id ảo để tránh lỗi 404 khi gọi luồng chat thường)
+            # Return the completion signal (only echo back an existing session_id; do not create a fake one to avoid 404s in regular chat calls)
             done_payload = {'event': 'done', 'metadata': {}}
             if request.session_id:
                 done_payload['session_id'] = request.session_id

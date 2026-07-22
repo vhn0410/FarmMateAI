@@ -13,36 +13,35 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requireAdmin = f
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
 
-  // Gọi API verify token ngầm khi component mount
+  // Call the token verification API silently when the component mounts
   // MUST be called before any early returns to follow Rules of Hooks
   useEffect(() => {
     if (isAuthenticated) {
       const authService = new AuthService();
       authService.verifyToken().catch(() => {
-        // Lỗi 401 sẽ bị interceptor bắt và tự động gọi logout, sau đó isAuthenticated sẽ trigger re-render
+        // 401 errors will be caught by the interceptor and trigger logout, which will cause isAuthenticated to re-render
       });
       
-      // Nếu có token nhưng chưa có thông tin user (do F5 tải lại trang), fetch lại user profile
+      // If there is a token but no user yet (for example after a hard refresh), fetch the user profile again
       if (!user) {
         authService.getCurrentUser()
           .then((profile) => setUser(profile))
           .catch(() => {
-             // Lỗi 401 interceptor sẽ xử lý
+             // The 401 interceptor will handle any error
           });
       }
     }
   }, [isAuthenticated, user, setUser]);
 
-  // Nếu chưa đăng nhập, điều hướng ngay lập tức về trang login
+  // If the user is not logged in, redirect immediately to the login page
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Nếu yêu cầu quyền admin nhưng user chưa có thông tin (đang tải) hoặc không phải admin
+  // If admin access is required but the user is still loading or is not an admin
   if (requireAdmin) {
     if (!user) {
-      // Đang tải thông tin user, có thể hiển thị loading spinner ở đây
-      // Tạm thời trả về null hoặc UI chờ
+      // The user profile is still loading; show a loading state here
       return <div>Loading...</div>; 
     }
     if (user.role !== 'admin') {
@@ -50,6 +49,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requireAdmin = f
     }
   }
 
-  // Nếu đã đăng nhập, cho phép hiển thị các component con (các trang bên trong)
+  // If the user is authenticated, allow the child components to render
   return <Outlet />;
 };

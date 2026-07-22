@@ -5,6 +5,6 @@ from main import app
 
 @pytest.fixture
 def test_client():
-    """Tạo một TestClient dùng chung cho tất cả các bài test API."""
+    """Create a shared TestClient for all API tests."""
     with TestClient(app) as client:
         yield client

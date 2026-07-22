@@ -4,24 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthActions } from '../../hooks/useAuthActions';
 
 export const LoginPage: React.FC = () => {
-  // Quản lý state của form
+  // Manage form state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   
-  // Lấy các hàm và state từ Custom Hook
+  // Get the functions and state from the custom hook
   const { handleLogin, isLoading, error } = useAuthActions();
   const navigate = useNavigate();
 
-  // Xử lý sự kiện submit form
+  // Handle the form submit event
   const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Ngăn chặn hành vi reload trang mặc định của form
+    e.preventDefault(); // Prevent the browser's default form reload behavior
     
     if (!username || !password) return;
 
-    // Gọi action login
+    // Call the login action
     const isSuccess = await handleLogin({ username, password });
     
-    // Nếu API trả về thành công và lưu token/state xong, chuyển hướng sang trang Chat
+    // If the API succeeds and the token/state have been saved, navigate to the chat page
     if (isSuccess) {
       navigate('/chat', { replace: true });
     }

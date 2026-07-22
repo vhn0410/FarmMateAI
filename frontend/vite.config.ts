@@ -6,10 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: true, // Lắng nghe trên mọi IP
-    allowedHosts: true, // Cho phép các host bên ngoài như ngrok truy cập
+    host: true, // Listen on all IPs
+    allowedHosts: true, // Allow external hosts such as ngrok access
     watch: {
-      usePolling: true, // Bật tính năng này để HMR hoạt động tốt trên Docker/Windows
+      usePolling: true, // Enable polling so HMR works well in Docker/Windows
     },
     proxy: {
       '/api': {

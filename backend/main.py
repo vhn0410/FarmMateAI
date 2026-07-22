@@ -6,33 +6,33 @@ from app.infrastructure.db.init_db import initialize_database
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Khởi tạo DB tự động (chỉ tạo bảng nếu chưa có, không xóa dữ liệu)
+    # Initialize the database automatically (create tables if needed, without deleting data)
     initialize_database()
     yield
-    # Cleanup (nếu cần giải phóng tài nguyên)
+    # Cleanup (if needed to release resources)
 
-# Khởi tạo ứng dụng FastAPI
+# Initialize the FastAPI application
 app = FastAPI(
     title="FarmMate AI API",
-    description="Hệ thống Backend AI tư vấn nông nghiệp",
+    description="Agricultural AI advisory backend system",
     version="1.0.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Cho phép Frontend từ mọi port gọi tới
+    allow_origins=["*"],  # Allow the frontend to call from any port
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Gắn toàn bộ router v1 vào ứng dụng chính
-# Tiền tố ở lớp ngoài cùng là /api/v1
+# Include the full v1 router in the main application
+# The outer prefix is /api/v1
 app.include_router(api_router, prefix="/api/v1")
 
 
-# Một API nhỏ để kiểm tra server có đang chạy hay không
+# A small API to check whether the server is running
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Backend FarmMate AI is running!"}
