@@ -30,14 +30,15 @@ class PGVectorProvider(IVectorStoreProvider):
 
     def __init__(self):
         """Khởi tạo PGVector instance thông qua factory function."""
+        from app.infrastructure.db.session import engine
         self._vector_store = PGVector(
             embeddings=self._get_embeddings_model(),
             collection_name=COLLECTION_NAME,
-            connection=DB_CONNECTION,
+            connection=engine,
             use_jsonb=True,  # Tối ưu lưu trữ metadata (chunk_id, hierarchy...)
         )
         # Khởi tạo DB engine cho DocStore
-        self._engine = create_engine(DB_CONNECTION)
+        self._engine = engine
         self._docstore = PostgresDocStore(self._engine)
 
     def _get_embeddings_model(self):
@@ -85,10 +86,11 @@ class PGVectorProvider(IVectorStoreProvider):
     # ==========================================
     # PHẦN MỚI: CUNG CẤP PARENT DOCUMENT RETRIEVER
     # ==========================================
-    def get_parent_document_retriever(self, file_ids: list[str] = None) -> HybridParentDocumentRetriever:
+    def get_parent_document_retriever(self, file_ids: list[str] = None, for_ingestion: bool = False) -> Any:
         """
         Trả về PDR object. Dùng chung cho cả Ingestion (Lưu DB) và Retrieval (Chat).
         Nếu có file_ids, sẽ tạo filter để chỉ search trong các file được chỉ định.
+        Nếu for_ingestion=True, không khởi tạo Reranker để tránh đầy RAM và đứng máy.
         """
         # Child splitter dùng để băm nhỏ dữ liệu lưu vào VectorDB
         child_splitter = RecursiveCharacterTextSplitter(
@@ -120,6 +122,9 @@ class PGVectorProvider(IVectorStoreProvider):
             top_k=15 # Lấy 15 parent docs tốt nhất để đưa vào Cross-Encoder chấm điểm lại
         )
         
+        if for_ingestion:
+            return base_retriever
+
         from app.infrastructure.vector_store.reranker import CrossEncoderReranker, CrossEncoderRerankingRetriever
         reranker = CrossEncoderReranker(top_k=3)
         return CrossEncoderRerankingRetriever(

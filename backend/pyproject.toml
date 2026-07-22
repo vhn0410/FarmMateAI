@@ -7,6 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.4",
     "bcrypt<4.0.0",
+    "boto3>=1.43.51",
     "cryptography>=48.0.0",
     "fastapi>=0.136.3",
     "google-api-python-client>=2.197.0",
@@ -17,6 +18,7 @@ dependencies = [
     "langchain>=1.3.4",
     "langchain-classic>=1.0.7",
     "langchain-community>=0.4.2",
+    "langchain-experimental>=0.4.2",
     "langchain-google-community>=4.0.0",
     "langchain-google-vertexai>=3.2.3",
     "langchain-huggingface>=1.2.2",
@@ -25,6 +27,7 @@ dependencies = [
     "langchain-text-splitters>=1.1.2",
     "langgraph>=1.2.4",
     "llama-parse>=0.6.94",
+    "neo4j>=6.2.0",
     "nest-asyncio>=1.6.0",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2>=2.9.12",

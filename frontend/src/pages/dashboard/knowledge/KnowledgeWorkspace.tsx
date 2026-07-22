@@ -4,6 +4,7 @@ import type { KnowledgeFile } from '../../../api/knowledgeService';
 import { useChatbot } from '../../../hooks/useChatbot';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { GraphViewer } from './GraphViewer';
 
 export const KnowledgeWorkspace: React.FC = () => {
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
@@ -20,9 +21,11 @@ export const KnowledgeWorkspace: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Document viewer states
-  const [viewMode, setViewMode] = useState<'pdf' | 'markdown' | 'chunks'>('pdf');
+  const [viewMode, setViewMode] = useState<'pdf' | 'markdown' | 'chunks' | 'graph'>('pdf');
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [chunksContent, setChunksContent] = useState<any[]>([]);
+  const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+  const [activeSourceText, setActiveSourceText] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
 
@@ -43,6 +46,9 @@ export const KnowledgeWorkspace: React.FC = () => {
         } else if (viewMode === 'chunks') {
           const chunks = await knowledgeService.getFileChunks(selectedFile.id);
           setChunksContent(chunks);
+        } else if (viewMode === 'graph') {
+          const graph = await knowledgeService.getFileGraph(selectedFile.id);
+          setGraphData(graph);
         }
       } catch (err) {
         console.error("Failed to load content", err);
@@ -84,8 +90,15 @@ export const KnowledgeWorkspace: React.FC = () => {
   }, [isDragging]);
 
   const handleSourceClick = (source: any) => {
-    setViewMode('markdown');
+    // Thay vì dựa vào chunk ID backend (không khớp), ta lưu lại đoạn text của Source
+    // Để GraphViewer tìm kiếm và tô màu tự động các Node xuất hiện trong đoạn text này
+    const text = source.full_content || source.content_snippet || '';
+    setActiveSourceText(text);
     
+    // Đảm bảo không dính stale closure: Chỉ chuyển sang markdown nếu không đang xem graph
+    setViewMode((prev) => prev === 'graph' ? 'graph' : 'markdown');
+    
+    // Vẫn gọi setTimeout để highlight markdown ngầm (nếu DOM markdown đang hiển thị)
     setTimeout(() => {
       const fullNorm = (source.full_content || source.content_snippet || '')
         .replace(/[*_~`#>-]/g, '')
@@ -169,23 +182,37 @@ export const KnowledgeWorkspace: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchFiles = async () => {
-      setIsLoadingFiles(true);
-      try {
-        const data = await knowledgeService.getFiles();
-        setFiles(data);
-        if (data.length > 0) {
-          setSelectedFile(data[0]); // Auto-select first file
-        }
-      } catch (error) {
-        console.error("Failed to fetch knowledge base files", error);
-      } finally {
-        setIsLoadingFiles(false);
+  const fetchFiles = async () => {
+    try {
+      const data = await knowledgeService.getFiles();
+      setFiles(data);
+      if (data.length > 0 && !selectedFile) {
+        setSelectedFile(data[0]); // Auto-select first file
       }
+    } catch (error) {
+      console.error("Failed to fetch knowledge base files", error);
+    }
+  };
+
+  useEffect(() => {
+    const initFetch = async () => {
+      setIsLoadingFiles(true);
+      await fetchFiles();
+      setIsLoadingFiles(false);
     };
-    fetchFiles();
+    initFetch();
   }, []);
+
+  // Polling for processing files
+  useEffect(() => {
+    const hasProcessingFiles = files.some(f => f.status === 'processing');
+    if (hasProcessingFiles) {
+      const interval = setInterval(() => {
+        fetchFiles();
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [files]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -219,6 +246,7 @@ export const KnowledgeWorkspace: React.FC = () => {
       if (selectedFile?.id === fileId) {
         setSelectedFile(null);
       }
+      setSelectedFileIds(prev => prev.filter(id => id !== fileId));
     } catch (error) {
       console.error("Failed to delete file", error);
       alert("Failed to delete file.");
@@ -235,14 +263,26 @@ export const KnowledgeWorkspace: React.FC = () => {
     }
   };
 
+  const readyFileIds = selectedFileIds.filter(id => {
+    const file = files.find(f => f.id === id);
+    return file && file.status !== 'processing';
+  });
+
+  const canChat = readyFileIds.length > 0;
+
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
+    if (!chatInput.trim() || isChatLoading || !canChat) return;
     
     // Luôn luôn dùng API RAG chuyên dụng trong Knowledge Workspace.
     // Nếu không chọn file (selectedFileIds rỗng), backend sẽ chặn không cho tìm kiếm gì cả.
     if (sendDocumentMessage) {
-      sendDocumentMessage(chatInput, selectedFileIds);
+      // Đảm bảo không gửi các file đang processing xuống backend
+      const readyFileIds = selectedFileIds.filter(id => {
+        const file = files.find(f => f.id === id);
+        return file && file.status !== 'processing';
+      });
+      sendDocumentMessage(chatInput, readyFileIds);
     }
     setChatInput('');
   };
@@ -299,10 +339,11 @@ export const KnowledgeWorkspace: React.FC = () => {
                 {/* Checkbox để chọn file chat */}
                 <input 
                   type="checkbox"
-                  checked={selectedFileIds.includes(file.id)}
+                  disabled={file.status === 'processing'}
+                  checked={file.status !== 'processing' && selectedFileIds.includes(file.id)}
                   onChange={(e) => handleToggleFile(e, file.id)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                  title="Include in chat filter"
+                  className={`w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ${file.status === 'processing' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                  title={file.status === 'processing' ? 'File is processing...' : 'Include in chat filter'}
                 />
                 
                 <button
@@ -310,12 +351,19 @@ export const KnowledgeWorkspace: React.FC = () => {
                   className="flex-1 flex items-start gap-3 min-w-0 text-left"
                 >
                   <div className={`mt-0.5 ${selectedFile?.id === file.id ? 'text-blue-600' : 'text-gray-400'}`}>
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" /></svg>
+                    {file.status === 'processing' ? (
+                      <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" /></svg>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
                     <h3 className={`font-medium text-sm truncate ${selectedFile?.id === file.id ? 'text-blue-800' : 'text-gray-700'}`}>
                       {file.name}
                     </h3>
+                    {file.status === 'processing' && (
+                      <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0">Processing</span>
+                    )}
                   </div>
                 </button>
                 <button
@@ -362,6 +410,12 @@ export const KnowledgeWorkspace: React.FC = () => {
               >
                 Chunks
               </button>
+              <button
+                onClick={() => setViewMode('graph')}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'graph' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+              >
+                Graph
+              </button>
             </div>
           )}
         </div>
@@ -392,7 +446,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                   </ReactMarkdown>
                 </div>
               </div>
-            ) : (
+            ) : viewMode === 'chunks' ? (
               <div className="absolute inset-0 z-10 overflow-auto bg-gray-50 p-6">
                 <div className="max-w-4xl mx-auto space-y-4">
                   <h3 className="text-lg font-medium text-gray-800 mb-4">Database Chunks ({chunksContent.length})</h3>
@@ -410,6 +464,10 @@ export const KnowledgeWorkspace: React.FC = () => {
                     <div className="text-center text-gray-500 py-10">No chunks found in database.</div>
                   )}
                 </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 z-10 overflow-hidden bg-gray-50">
+                <GraphViewer graphData={graphData} activeSourceText={activeSourceText} />
               </div>
             )
           ) : (
@@ -517,14 +575,15 @@ export const KnowledgeWorkspace: React.FC = () => {
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask a question..."
-              className="flex-1 bg-transparent border-none py-3 px-2 text-sm text-gray-800 focus:outline-none focus:ring-0 placeholder-gray-400"
+              disabled={!canChat || isChatLoading}
+              placeholder={canChat ? "Ask a question..." : "Select a ready document to chat..."}
+              className="flex-1 bg-transparent border-none py-3 px-2 text-sm text-gray-800 focus:outline-none focus:ring-0 placeholder-gray-400 disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={!chatInput.trim() || isChatLoading}
+              disabled={!chatInput.trim() || isChatLoading || !canChat}
               className={`p-2 rounded-lg transition-colors ${
-                chatInput.trim() && !isChatLoading 
+                chatInput.trim() && !isChatLoading && canChat
                   ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
                   : 'bg-transparent text-gray-300'
               }`}

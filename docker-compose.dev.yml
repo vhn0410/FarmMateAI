@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: farmmate_backend_dev
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./backend:/app  # Hot-reload code
+      - backend_venv:/app/.venv      # Tránh đè môi trường ảo trong container
+      - uv_cache:/root/.cache/uv
+    command: bash -c "uv sync && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    networks:
+      - farmmate_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: farmmate_frontend_dev
+    ports:
+      - "5173:5173"     # Vite default port
+    volumes:
+      - ./frontend:/app # Hot-reload UI
+      - frontend_node_modules:/app/node_modules # Tránh đè node_modules trong container
+      - npm_cache:/root/.npm
+    command: sh -c "npm install && npm run dev -- --host"
+    networks:
+      - farmmate_net
+
+  neo4j:
+    image: neo4j:5
+    container_name: farmmate_neo4j_dev
+    ports:
+      - "7474:7474" # HTTP port for Neo4j Browser
+      - "7687:7687" # Bolt port
+    environment:
+      - NEO4J_AUTH=neo4j/farmmatepassword
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      # Allow APOC plugins if needed in the future
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - farmmate_net
+
+networks:
+  farmmate_net:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  backend_venv:
+  frontend_node_modules:
+  uv_cache:
+  npm_cache:

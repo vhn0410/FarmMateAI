@@ -18,3 +18,8 @@ class IDocumentProvider(ABC):
     def mark_as_processed(self, file_id: str) -> None:
         """Đánh dấu một tài liệu đã được xử lý xong."""
         pass
+
+    @abstractmethod
+    def check_pdf_exists(self, file_name: str) -> bool:
+        """Kiểm tra file PDF có tồn tại không."""
+        pass

@@ -6,6 +6,9 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 from app.domain.interfaces.document_provider import IDocumentProvider
 from app.domain.interfaces.vector_db import IVectorStoreProvider
 from app.application.documents.chunking.llm_cleaner import LLMDocumentCleaner
+from app.application.documents.chunking.graph_extractor import GraphExtractor
+from app.application.documents.chunking.graph_extractor import GraphExtractor
+from app.infrastructure.vector_store.graph_provider import Neo4jGraphProvider
 
 
 class DocumentUseCase:
@@ -34,6 +37,10 @@ class DocumentUseCase:
         
         # Khởi tạo bộ lọc rác LLM
         self.llm_cleaner = LLMDocumentCleaner()
+        
+        # Khởi tạo Graph Extractor và Provider
+        self.graph_extractor = GraphExtractor()
+        self.graph_provider = Neo4jGraphProvider()
 
     def sync_documents(self) -> str:
         """
@@ -44,7 +51,7 @@ class DocumentUseCase:
         if not raw_documents:
             return "Không có tài liệu mới"
 
-        print(f"📦 Đã load thành công {len(raw_documents)} tài liệu thô.")
+        print(f"📦 Đã load thành công {len(raw_documents)} tài liệu thô.", flush=True)
 
         natural_parent_docs = []
         processed_file_ids = set()
@@ -61,7 +68,7 @@ class DocumentUseCase:
             md_split_docs = self.markdown_splitter.split_text(doc.page_content)
 
             # 2.5 Dọn rác bằng LLM cho các chunks vừa sinh ra
-            print(f"🧹 Đang gọi LLM (gpt-4o-mini) dọn rác cho {len(md_split_docs)} Parent Chunks...")
+            print(f"🧹 Đang gọi LLM (gpt-4o-mini) dọn rác cho {len(md_split_docs)} Parent Chunks...", flush=True)
             clean_md_docs = self.llm_cleaner.clean_documents(md_split_docs)
 
             # 3. Gắn metadata chi tiết cho từng Parent Chunk
@@ -72,18 +79,45 @@ class DocumentUseCase:
                 natural_parent_docs.append(enriched_doc)
 
         print(
-            f"✂️ Đã tạo {len(natural_parent_docs)} Parent Chunks tự nhiên. Tiến hành lưu database..."
+            f"✂️ Đã tạo {len(natural_parent_docs)} Parent Chunks tự nhiên. Tiến hành lưu database...", flush=True
         )
 
-        # 4. Giao phó việc cắt Child & lưu trữ cho Provider (Dependency Inversion)
-        success = self._save_with_pdr_and_mark_processed(
-            natural_parent_docs, processed_file_ids
-        )
-
-        if success:
-            print("🎉 Quá trình Ingestion hoàn tất 100%!")
-            return "Thành công"
-        return "Lỗi trong quá trình lưu Database"
+        try:
+            # 3.5. Trích xuất và lưu Knowledge Graph vào Neo4j
+            print(f"🕸️ Đang trích xuất Knowledge Graph từ {len(natural_parent_docs)} Parent Chunks...", flush=True)
+            graph_docs = self.graph_extractor.extract_graph_documents(natural_parent_docs)
+            if graph_docs:
+                print(f"Lưu {len(graph_docs)} Graph Documents vào Neo4j...", flush=True)
+                self.graph_provider.add_graph_documents(graph_docs)
+    
+            # 4. Giao phó việc cắt Child & lưu trữ cho Provider (Dependency Inversion)
+            success = self._save_with_pdr_and_mark_processed(
+                natural_parent_docs, processed_file_ids
+            )
+    
+            if success:
+                print("🎉 Quá trình Ingestion hoàn tất 100%!", flush=True)
+                return "Thành công"
+            else:
+                # KÍCH HOẠT ROLLBACK (SAGA PATTERN)
+                print("⚠️ Lỗi khi lưu Vector DB. Tiến hành Rollback toàn diện (Graph, Vector DB, File)...", flush=True)
+                for file_id in processed_file_ids:
+                    if file_id:
+                        try:
+                            self.delete_document(file_id)
+                        except Exception as rb_e:
+                            print(f"❌ Lỗi khi rollback cho {file_id}: {rb_e}", flush=True)
+                return "Lỗi trong quá trình lưu Database, đã Rollback an toàn"
+        except Exception as e:
+            # Bắt lỗi nếu quá trình lưu thất bại, tiến trình dừng lại luôn
+            print(f"❌ Lỗi trong quá trình Ingestion: {str(e)}. Đang Rollback toàn diện...", flush=True)
+            for file_id in processed_file_ids:
+                if file_id:
+                    try:
+                        self.delete_document(file_id)
+                    except Exception as rb_e:
+                        print(f"❌ Lỗi khi rollback cho {file_id}: {rb_e}", flush=True)
+            return "Lỗi trong quá trình lưu Database"
 
     def _extract_file_id(self, source_file: str) -> str:
         """Trích xuất File ID phục vụ việc di chuyển file sau khi xong."""
@@ -134,20 +168,20 @@ class DocumentUseCase:
         """
         try:
             # Lấy công cụ PDR đã được cấu hình sẵn từ Provider
-            pdr_retriever = self.vector_store_provider.get_parent_document_retriever()
+            pdr_retriever = self.vector_store_provider.get_parent_document_retriever(for_ingestion=True)
 
             # PDR tự động cắt Child chunks, lưu vào PGVector và lưu Parent vào DocStore (JSONB)
             pdr_retriever.add_documents(parent_docs, ids=None)
-            print("✅ Đã lưu thành công vào Vector Database và DocStore.")
+            print("✅ Đã lưu thành công vào Vector Database và DocStore.", flush=True)
 
             # Chỉ mark file as processed KHI VÀ CHỈ KHI lưu DB thành công
-            print("🚚 Đang đánh dấu hoàn tất các file đã xử lý...")
+            print("🚚 Đang đánh dấu hoàn tất các file đã xử lý...", flush=True)
             for file_id in file_ids:
                 if file_id:
                     # Kiểm tra lại một lần nữa: Nếu PDF gốc bị xóa TRONG QUÁ TRÌNH lưu DB
                     # => Đây là "Tài liệu Zombie", ta phải lập tức Scrub (xóa) nó khỏi DB!
-                    if not self.provider.get_pdf_path(f"{file_id}.pdf").exists():
-                        print(f"⚠️ Phát hiện file {file_id} bị xóa ngang lúc lưu DB. Tiến hành dọn dẹp Zombie Chunks!")
+                    if not self.provider.check_pdf_exists(f"{file_id}.pdf"):
+                        print(f"⚠️ Phát hiện file {file_id} bị xóa ngang lúc lưu DB. Tiến hành dọn dẹp Zombie Chunks!", flush=True)
                         self.vector_store_provider.delete_documents_by_file_id(file_id)
                         # Dọn luôn file MD
                         self.provider.delete_file(file_id)
@@ -156,7 +190,7 @@ class DocumentUseCase:
             return True
 
         except Exception as e:
-            print(f"❌ Lỗi nghiêm trọng khi lưu DB: {str(e)}")
+            print(f"❌ Lỗi nghiêm trọng khi lưu DB: {str(e)}", flush=True)
             return False
 
     def delete_document(self, file_id: str) -> str:
@@ -167,15 +201,19 @@ class DocumentUseCase:
         clean_file_id = file_id.replace(".pdf", "").replace(".md", "")
         
         try:
-            # 1. Xóa trong CSDL Vector
+            # 1. Xóa trong Graph DB trước tiên (Bảo đảm Graph không bị bỏ rơi nếu File xóa thành công mà Graph thất bại)
+            if hasattr(self, "graph_provider") and self.graph_provider:
+                self.graph_provider.delete_graph_by_file_id(clean_file_id)
+                
+            # 2. Xóa trong CSDL Vector (Idempotent)
             if hasattr(self.vector_store_provider, "delete_documents_by_file_id"):
                 self.vector_store_provider.delete_documents_by_file_id(clean_file_id)
             
-            # 2. Xóa File vật lý
+            # 3. Xóa File vật lý (Hành động cuối cùng, vì Frontend dựa vào file này để hiển thị)
             if hasattr(self.provider, "delete_file"):
                 self.provider.delete_file(clean_file_id)
                 
             return "Xóa tài liệu thành công"
         except Exception as e:
-            print(f"❌ Lỗi khi xóa tài liệu {clean_file_id}: {str(e)}")
+            print(f"❌ Lỗi khi xóa tài liệu {clean_file_id}: {str(e)}", flush=True)
             raise e

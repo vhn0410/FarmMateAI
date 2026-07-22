@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     # THÊM DÒNG NÀY VÀO:
     jwt_secret_key: str = "123456"
 
+    # Neo4j Graph Configuration
+    neo4j_uri: str = "bolt://neo4j:7687"
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = "farmmatepassword"
+
+    # Storage Configuration
+    storage_provider: str = "local" # "local" or "s3"
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str | None = None
+    aws_bucket_name: str | None = None
+
     # Application Settings
     environment: str = "development"
     debug: bool = False

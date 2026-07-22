@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: farmmate_backend_prod
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - farmmate_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: farmmate_frontend_prod
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - farmmate_net
+
+  neo4j:
+    image: neo4j:5
+    container_name: farmmate_neo4j_prod
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/farmmatepassword
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    networks:
+      - farmmate_net
+
+networks:
+  farmmate_net:
+    driver: bridge
+
+volumes:
+  neo4j_data:
