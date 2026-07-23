@@ -8,7 +8,7 @@ export interface KnowledgeFile {
 
 export const knowledgeService = {
   getFiles: async (): Promise<KnowledgeFile[]> => {
-    const response = await axiosClient.get('/api/v1/documents/knowledge-base/files');
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files?t=${Date.now()}`);
     return response.data.data;
   },
   uploadFile: async (file: File): Promise<KnowledgeFile> => {

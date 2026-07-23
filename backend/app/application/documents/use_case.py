@@ -99,7 +99,7 @@ class DocumentUseCase:
                 print("🎉 Ingestion completed successfully!", flush=True)
                 return "Success"
             else:
-                # KÍCH HOẠT ROLLBACK (SAGA PATTERN)
+                # TRIGGER ROLLBACK (SAGA PATTERN)
                 print("⚠️ Error while saving to the vector database. Performing full rollback (graph, vector DB, file)...", flush=True)
                 for file_id in processed_file_ids:
                     if file_id:
@@ -109,14 +109,14 @@ class DocumentUseCase:
                             print(f"❌ Error during rollback for {file_id}: {rb_e}", flush=True)
                 return "Error during database save; rollback completed safely"
         except Exception as e:
-            # Bắt lỗi nếu quá trình lưu thất bại, tiến trình dừng lại luôn
+            # Catch error if save fails, process stops immediately
             print(f"❌ Error during ingestion: {str(e)}. Performing full rollback...", flush=True)
             for file_id in processed_file_ids:
                 if file_id:
                     try:
                         self.delete_document(file_id)
                     except Exception as rb_e:
-                        print(f"❌ Lỗi khi rollback cho {file_id}: {rb_e}", flush=True)
+                        print(f"❌ Error during rollback for {file_id}: {rb_e}", flush=True)
             return "Error during database save"
 
     def _extract_file_id(self, source_file: str) -> str:
