@@ -37,11 +37,11 @@ FarmMate AI is an agricultural AI platform built to help farmers and agronomists
 
 This repository follows a monorepo layout with two main applications:
 
-- ackend/
+- Backend/
   - FastAPI backend application with API routing under /api/v1
   - Includes database initialization, authentication, document ingestion, and AI retrieval logic
   - Uses Neo4j for graph-based knowledge storage and LangChain for LLM orchestration
-- rontend/
+- Frontend/
   - React + Vite frontend application using Tailwind CSS, Zustand, and React Router
   - Provides chat, conversation history, and knowledge exploration interfaces
 - docker-compose.dev.yml
