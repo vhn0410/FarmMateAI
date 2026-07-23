@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     postgres_connection_string: str
+    redis_url: str = "redis://redis:6379/0"
     collection_name: str = "enterprise_rag_documents"
 
     # Google Drive Configuration

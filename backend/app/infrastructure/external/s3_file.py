@@ -29,6 +29,32 @@ class S3FileSystemProvider(IDocumentProvider):
         self.pdf_prefix = "pdf/"
         self.md_prefix = "md/"
         self.processed_prefix = "processed/"
+        self.lock_prefix = "locks/"
+
+    def create_lock(self, file_id: str) -> None:
+        """Create an empty lock file in S3 to indicate the file is processing."""
+        lock_key = f"{self.lock_prefix}{file_id}.lock"
+        try:
+            self.s3_client.put_object(Bucket=self.bucket_name, Key=lock_key, Body=b"")
+        except Exception as e:
+            print(f"Error creating lock for {file_id}: {str(e)}")
+
+    def remove_lock(self, file_id: str) -> None:
+        """Remove the lock file from S3."""
+        lock_key = f"{self.lock_prefix}{file_id}.lock"
+        try:
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=lock_key)
+        except Exception as e:
+            print(f"Error removing lock for {file_id}: {str(e)}")
+
+    def is_locked(self, file_id: str) -> bool:
+        """Check if the lock file exists in S3."""
+        lock_key = f"{self.lock_prefix}{file_id}.lock"
+        try:
+            self.s3_client.head_object(Bucket=self.bucket_name, Key=lock_key)
+            return True
+        except Exception:
+            return False
 
     def list_pdf_files(self) -> List[dict]:
         """Trả về danh sách các file PDF hiện có trong S3 bucket (prefix pdf/)."""
@@ -217,8 +243,8 @@ class S3FileSystemProvider(IDocumentProvider):
 
     def mark_as_processed(self, file_id: str) -> None:
         """
-        Di chuyển file Markdown trong S3 từ md/ sang processed/
-        S3 không có lệnh move, nên ta copy rồi delete.
+        Move the Markdown file from md/ to processed/
+        S3 doesn't have a move command, so we copy and delete.
         """
         source_key = f"{self.md_prefix}{file_id}.md"
         dest_key = f"{self.processed_prefix}{file_id}.md"
@@ -227,16 +253,17 @@ class S3FileSystemProvider(IDocumentProvider):
             copy_source = {'Bucket': self.bucket_name, 'Key': source_key}
             self.s3_client.copy_object(CopySource=copy_source, Bucket=self.bucket_name, Key=dest_key)
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=source_key)
-            print(f"✅ Đã di chuyển S3 {file_id}.md sang processed/")
+            print(f"✅ Moved S3 {file_id}.md to processed/")
         except Exception as e:
-            print(f"❌ Lỗi khi move file {file_id}.md: {str(e)}")
+            print(f"❌ Error moving file {file_id}.md: {str(e)}")
 
     def delete_file(self, file_id: str) -> None:
-        """Xóa toàn bộ các file liên quan đến file_id trên S3."""
+        """Delete all files related to file_id on S3."""
         keys_to_delete = [
             f"{self.pdf_prefix}{file_id}.pdf",
             f"{self.md_prefix}{file_id}.md",
-            f"{self.processed_prefix}{file_id}.md"
+            f"{self.processed_prefix}{file_id}.md",
+            f"{self.lock_prefix}{file_id}.lock"
         ]
         
         objects = [{'Key': key} for key in keys_to_delete]
@@ -245,6 +272,6 @@ class S3FileSystemProvider(IDocumentProvider):
                 Bucket=self.bucket_name,
                 Delete={'Objects': objects}
             )
-            print(f"🗑️ Đã xóa các file liên quan đến {file_id} trên S3.")
+            print(f"🗑️ Deleted all files related to {file_id} on S3.")
         except Exception as e:
-            print(f"❌ Lỗi khi xóa trên S3: {str(e)}")
+            print(f"❌ Error deleting on S3: {str(e)}")

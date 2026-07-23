@@ -55,6 +55,34 @@ services:
     networks:
       - farmmate_net
 
+  redis:
+    image: redis:alpine
+    container_name: farmmate_redis_dev
+    ports:
+      - "6379:6379"
+    networks:
+      - farmmate_net
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: farmmate_celery_dev
+    env_file:
+      - ./backend/.env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./backend:/app  # Hot-reload code
+      - backend_venv:/app/.venv
+      - uv_cache:/root/.cache/uv
+    command: bash -c "uv sync && celery -A app.infrastructure.celery.celery_app worker --loglevel=info"
+    depends_on:
+      - redis
+    networks:
+      - farmmate_net
+
 networks:
   farmmate_net:
     driver: bridge

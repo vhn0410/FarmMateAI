@@ -18,11 +18,29 @@ class LocalFileSystemProvider(IDocumentProvider):
         self.pdf_dir = self.base_dir / "pdf"
         self.md_dir = self.base_dir / "md"
         self.processed_dir = self.base_dir / "processed"
+        self.lock_dir = self.base_dir / "locks"
 
-        # Đảm bảo các thư mục tồn tại
+        # Ensure directories exist
         self.pdf_dir.mkdir(parents=True, exist_ok=True)
         self.md_dir.mkdir(parents=True, exist_ok=True)
         self.processed_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+
+    def create_lock(self, file_id: str) -> None:
+        """Create a lock file to indicate the file is processing."""
+        lock_file = self.lock_dir / f"{file_id}.lock"
+        lock_file.touch()
+
+    def remove_lock(self, file_id: str) -> None:
+        """Remove the lock file."""
+        lock_file = self.lock_dir / f"{file_id}.lock"
+        if lock_file.exists():
+            lock_file.unlink()
+
+    def is_locked(self, file_id: str) -> bool:
+        """Check if the lock file exists."""
+        lock_file = self.lock_dir / f"{file_id}.lock"
+        return lock_file.exists()
 
     def list_pdf_files(self) -> List[dict]:
         """Trả về danh sách các file PDF hiện có trong hệ thống."""
@@ -165,21 +183,24 @@ class LocalFileSystemProvider(IDocumentProvider):
             print(f"✅ Đã di chuyển {md_file.name} sang processed/")
 
     def delete_file(self, file_id: str) -> None:
-        """Xóa toàn bộ các file vật lý liên quan đến file_id."""
-        # 1. Xóa PDF gốc
+        """Delete all physical files related to file_id."""
+        # 1. Delete original PDF
         pdf_file = self.pdf_dir / f"{file_id}.pdf"
         if pdf_file.exists():
             pdf_file.unlink()
-            print(f"🗑️ Đã xóa PDF: {pdf_file.name}")
+            print(f"🗑️ Deleted PDF: {pdf_file.name}")
             
-        # 2. Xóa MD thô (nếu chưa processed)
+        # 2. Delete raw MD (if not processed)
         md_file = self.md_dir / f"{file_id}.md"
         if md_file.exists():
             md_file.unlink()
-            print(f"🗑️ Đã xóa MD: {md_file.name}")
+            print(f"🗑️ Deleted MD: {md_file.name}")
             
-        # 3. Xóa MD trong processed
+        # 3. Delete MD in processed
         processed_file = self.processed_dir / f"{file_id}.md"
         if processed_file.exists():
             processed_file.unlink()
-            print(f"🗑️ Đã xóa Processed MD: {processed_file.name}")
+            print(f"🗑️ Deleted Processed MD: {processed_file.name}")
+
+        # 4. Delete lock file
+        self.remove_lock(file_id)

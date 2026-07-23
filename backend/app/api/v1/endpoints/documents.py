@@ -37,16 +37,16 @@ def get_document_use_case(
 
 
 @router.post("/sync-knowledge", response_model=SyncResponse)
-async def sync_knowledge_from_drive(
-    background_tasks: BackgroundTasks,
-    use_case: DocumentUseCase = Depends(get_document_use_case),
-):
+async def sync_knowledge_from_drive():
     """
-    Trigger an API to sync the latest agricultural data from Google Drive.
+    Trigger API to sync the latest agricultural data from Google Drive or S3.
+    Pushed to Celery Worker to run safely in the background.
     """
-    background_tasks.add_task(use_case.sync_documents)
+    from app.application.documents.tasks import sync_all_documents_task
+    sync_all_documents_task.delay()
+    
     return SyncResponse(
-        status="success", message="The system is processing documents in the background."
+        status="success", message="The system is processing documents in the background via Celery."
     )
 
 
@@ -80,26 +80,37 @@ def stream_knowledge_base_file(file_id: str, provider=Depends(get_document_provi
 
 @router.post("/knowledge-base/files/upload")
 async def upload_knowledge_base_file(
-    background_tasks: BackgroundTasks,
-    file: __import__("fastapi").UploadFile = __import__("fastapi").File(...),
-    use_case: DocumentUseCase = Depends(get_document_use_case),
-    provider=Depends(get_document_provider),
+    file: __import__('fastapi').UploadFile = __import__('fastapi').File(...),
+    provider = Depends(get_document_provider),
+    use_case: DocumentUseCase = Depends(get_document_use_case)
 ):
-    """Upload a PDF file, run LlamaParse in the background, and automatically vectorize it."""
+    """Upload a PDF file, send a Job to Celery to run LlamaParse in the background, then automatically Embed to Vector DB."""
     try:
         file_bytes = await file.read()
-        saved_name = provider.save_uploaded_pdf(file.filename, file_bytes)
-
-        # Background task: convert PDF to MD, then sync and embed it immediately
-        def process_and_embed(pdf_name: str, doc_provider, document_use_case: DocumentUseCase):
-            doc_provider.process_pdf_to_md(pdf_name)
-            document_use_case.sync_documents()
-
-        # Add the processing task to the background queue
-        background_tasks.add_task(process_and_embed, saved_name, provider, use_case)
-
-        uploaded_file = {"id": saved_name, "name": saved_name, "status": "processing"}
+        
+        import time
+        from pathlib import Path
+        
+        # Add a timestamp to the filename to ensure it is always unique
+        # This prevents S3 overwrites and allows users to process the same file multiple times independently
+        original_path = Path(file.filename)
+        timestamp = int(time.time())
+        unique_filename = f"{original_path.stem}_{timestamp}{original_path.suffix}"
+            
+        saved_name = provider.save_uploaded_pdf(unique_filename, file_bytes)
+        
+        # Push the processing task to the Celery Queue
+        from app.application.documents.tasks import process_and_embed_task
+        process_and_embed_task.delay(saved_name)
+        
+        uploaded_file = {
+            "id": saved_name,
+            "name": saved_name,
+            "status": "processing"
+        }
         return {"status": "success", "data": uploaded_file}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -135,11 +146,21 @@ def get_knowledge_base_file_chunks(file_id: str):
 async def delete_knowledge_base_file(
     file_id: str,
     use_case: DocumentUseCase = Depends(get_document_use_case),
+    provider = Depends(get_document_provider),
 ):
     """Delete a file from storage and the vector database."""
     try:
+        clean_file_id = file_id.replace(".pdf", "").replace(".md", "")
+        if provider.is_locked(clean_file_id):
+            raise HTTPException(
+                status_code=409, 
+                detail="File is currently being processed by a background task and cannot be deleted."
+            )
+            
         message = use_case.delete_document(file_id)
         return {"status": "success", "message": message}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
