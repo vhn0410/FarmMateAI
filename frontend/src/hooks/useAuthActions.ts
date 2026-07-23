@@ -15,16 +15,16 @@ export const useAuthActions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Gọi API Login lấy Token
+      // 1. Call the login API to obtain a token
       const tokenData = await authService.login(credentials);
       
-      // Lưu tạm token vào localStorage để axios interceptor kịp đính kèm vào header cho request kế tiếp
+      // Store the token temporarily in localStorage so the axios interceptor can attach it to the next request
       localStorage.setItem('access_token', tokenData.access_token);
       
-      // 2. Gọi API lấy thông tin Profile để JIT sync dữ liệu
+      // 2. Call the profile API to sync user data lazily
       const profile = await authService.getCurrentUser();
       
-      // 3. Đồng bộ vào Zustand global state
+      // 3. Sync the data into the global Zustand state
       setAuth(tokenData.access_token, profile);
       return true;
     } catch (err: any) {

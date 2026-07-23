@@ -1,6 +1,6 @@
 """
-Helper module để generate suggested questions, extract sources, và aggregate tokens.
-Xử lý logic để populate các field trong ChatResponse từ SkillResult.
+Helper module to generate suggested questions, extract sources, and aggregate tokens.
+Handles the logic to populate ChatResponse fields from SkillResult.
 """
 
 from typing import List, Dict, Any, Optional
@@ -10,7 +10,7 @@ from app.domain.interfaces.llm_provider import ILLMProvider
 
 class ResponseEnhancer:
     """
-    Xử lý logic tăng cường response từ SkillResult thành ChatResponse đầy đủ thông tin.
+    Enhances a SkillResult into a fully populated ChatResponse.
     """
 
     @staticmethod
@@ -20,13 +20,13 @@ class ResponseEnhancer:
         skill_name: str = "",
     ) -> List[SourceDocument]:
         """
-        Trích xuất sources từ metadata của SkillResult.
-        Thực hiện citation matching: chỉ giữ sources mà được referenced trong answer.
+        Extract sources from SkillResult metadata.
+        Performs citation matching: keep only sources referenced in the answer.
 
-        :param skill_result_metadata: metadata dict từ SkillResult
-        :param answer: Câu trả lời từ skill
-        :param skill_name: Tên skill để log
-        :return: Danh sách SourceDocument có liên quan
+        :param skill_result_metadata: metadata dict from SkillResult
+        :param answer: answer returned by the skill
+        :param skill_name: skill name used for logging
+        :return: list of relevant SourceDocument entries
         """
         sources_raw = skill_result_metadata.get("sources", [])
         if not sources_raw:
@@ -35,7 +35,7 @@ class ResponseEnhancer:
         source_documents = []
 
         # ===== CITATION MATCHING LOGIC =====
-        # Đơn giản: keyword match - nếu content từ source xuất hiện trong answer thì keep
+        # Simple keyword matching: keep the source if its content appears in the answer
         answer_lower = answer.lower()
 
         for source in sources_raw:
@@ -50,7 +50,7 @@ class ResponseEnhancer:
             if file_name:
                 keywords.append(file_name)
 
-            # Kiểm tra xem có keyword nào từ source xuất hiện trong answer không
+            # Check whether any source keywords appear in the answer
             is_cited = False
             for keyword in keywords:
                 keyword_clean = keyword.strip().lower()
@@ -58,7 +58,7 @@ class ResponseEnhancer:
                     is_cited = True
                     break
 
-            # Nếu answer mention file_name hay hierarchy, giữ lại source này
+            # If the answer mentions the file_name or hierarchy, keep this source
             if is_cited:
                 source_documents.append(
                     SourceDocument(
@@ -68,7 +68,7 @@ class ResponseEnhancer:
                     )
                 )
 
-        # Nếu không có match nào, return top 3 sources as fallback
+        # If no matches are found, return the top 3 sources as a fallback
         if not source_documents and sources_raw:
             for source in sources_raw[:3]:
                 source_documents.append(
@@ -89,14 +89,14 @@ class ResponseEnhancer:
         llm_provider: Optional[ILLMProvider] = None,
     ) -> List[str]:
         """
-        Generate suggested follow-up questions dựa trên answer.
-        Sử dụng LLM để sinh ra questions tự nhiên.
+        Generate suggested follow-up questions based on the answer.
+        Uses an LLM to produce natural questions.
 
-        :param answer: Câu trả lời chính từ skill
-        :param query: Câu hỏi gốc từ user
-        :param sources: Danh sách sources được sử dụng
-        :param llm_provider: LLM provider để generate questions
-        :return: Danh sách suggested questions (up to 3)
+        :param answer: primary answer returned by the skill
+        :param query: original user query
+        :param sources: list of sources used
+        :param llm_provider: LLM provider used to generate questions
+        :return: list of suggested questions (up to 3)
         """
 
         try:
@@ -109,22 +109,22 @@ class ResponseEnhancer:
                     [f"- {s.file_name} ({s.hierarchy})" for s in sources[:3]]
                 )
 
-            # Prompt để generate questions
-            prompt = f"""Dựa trên câu hỏi gốc và câu trả lời dưới đây, hãy sinh ra 3 câu hỏi follow-up tự nhiên và liên quan.
+            # Prompt to generate questions
+            prompt = f"""Based on the original question and answer below, generate 3 natural and relevant follow-up questions.
 
-Câu hỏi gốc: {query}
+Original question: {query}
 
-Câu trả lời: {answer}
+Answer: {answer}
 
-Nguồn tham khảo:
+Reference sources:
 {sources_context}
 
-Hãy sinh ra 3 câu hỏi mà người dùng có thể hỏi tiếp. Mỗi câu hỏi trên một dòng, bắt đầu bằng "-". Ví dụ:
-- Câu hỏi 1?
-- Câu hỏi 2?
-- Câu hỏi 3?
+Generate 3 questions the user might ask next. Put each question on its own line, starting with "-". Example:
+- Question 1?
+- Question 2?
+- Question 3?
 
-Chỉ trả về 3 câu hỏi, không thêm gì khác."""
+Return only 3 questions and nothing else."""
 
             # Call LLM
             response = llm.invoke(prompt)
@@ -132,7 +132,7 @@ Chỉ trả về 3 câu hỏi, không thêm gì khác."""
                 response.content if hasattr(response, "content") else str(response)
             )
 
-            # Parse questions từ response (mỗi dòng bắt đầu với -)
+            # Parse questions from the response (each line starts with -)
             questions = []
             for line in response_text.split("\n"):
                 line = line.strip()
@@ -147,9 +147,9 @@ Chỉ trả về 3 câu hỏi, không thêm gì khác."""
             print(f"Error generating suggested questions: {e}")
             # Fallback: return generic questions
             return [
-                "Bạn có thể giải thích thêm chi tiết về điều này không?",
-                "Có các phương pháp khác để giải quyết vấn đề này không?",
-                "Đây có phải là vấn đề phổ biến không?",
+                "Could you explain this in more detail?",
+                "Are there other ways to address this issue?",
+                "Is this a common problem?",
             ]
 
     @staticmethod
@@ -158,11 +158,11 @@ Chỉ trả về 3 câu hỏi, không thêm gì khác."""
         suggested_questions_tokens: Optional[Dict[str, int]] = None,
     ) -> Optional[TokenUsage]:
         """
-        Aggregate token usage từ tất cả LLM calls.
+        Aggregate token usage from all LLM calls.
 
-        :param skill_tokens: Token usage từ skill (RAG, Weather, etc.)
-        :param suggested_questions_tokens: Token usage từ suggested questions generation
-        :return: TokenUsage object với tổng tokens
+        :param skill_tokens: token usage from the skill (RAG, Weather, etc.)
+        :param suggested_questions_tokens: token usage from suggested questions generation
+        :return: TokenUsage object with the total tokens
         """
         total_prompt = 0
         total_completion = 0

@@ -15,6 +15,7 @@ from app.infrastructure.auth.postgres_auth import pwd_context
 
 router = APIRouter()
 
+
 class UserRegisterRequest(BaseModel):
     username: str
     password: str
@@ -22,79 +23,75 @@ class UserRegisterRequest(BaseModel):
     full_name: Optional[str] = None
     role: str = "user"
 
+
 @router.post("/register")
 def register_user(
     request: UserRegisterRequest,
-    user_repo: IUserRepository = Depends(get_user_repository)
+    user_repo: IUserRepository = Depends(get_user_repository),
 ):
     """
-    API đăng ký user mới.
+    API to register a new user.
     """
-    # Check existing
     existing = user_repo.get_by_username(request.username)
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
-    
+
     hashed_password = pwd_context.hash(request.password)
-    
+
     user_data = {
         "username": request.username,
         "hashed_password": hashed_password,
         "email": request.email,
         "full_name": request.full_name,
         "role": request.role,
-        "auth_provider": "postgres"
+        "auth_provider": "postgres",
     }
-    
+
     user_repo.create_user(user_data)
-    
+
     return {"status": "success", "message": "User registered successfully"}
+
 
 @router.post("/login")
 def login_for_access_token(
-    # OAuth2PasswordRequestForm tự động lấy username/password từ ô nhập của Swagger UI
+    # OAuth2PasswordRequestForm automatically reads username/password from Swagger UI input fields
     form_data: OAuth2PasswordRequestForm = Depends(),
-    auth_provider: IAuthProvider = Depends(get_auth_provider)
+    auth_provider: IAuthProvider = Depends(get_auth_provider),
 ):
     """
-    API xử lý đăng nhập.
-    Tự động gọi vào Provider hiện tại (Postgres hoặc Keycloak) để cấp Token.
+    API to handle login.
+    It delegates to the current provider (Postgres or Keycloak) to issue a token.
     """
-    token = auth_provider.login(
-        username=form_data.username, 
-        password=form_data.password
-    )
-    
-    # Bắt buộc trả về format JSON này để Swagger UI hiểu và đóng ổ khóa
-    return {
-        "access_token": token, 
-        "token_type": "bearer"
-    }
+    token = auth_provider.login(username=form_data.username, password=form_data.password)
+
+    # This response format is required so Swagger UI understands and can authorize the request
+    return {"access_token": token, "token_type": "bearer"}
+
 
 @router.get("/verify")
 def verify_token(
     current_user: dict = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme)
+    token: str = Depends(oauth2_scheme),
 ):
     """
-    API dùng để Frontend Health Check.
-    Kiểm tra token có hợp lệ không (bao gồm cả việc check với upstream AAEM API).
+    API used for frontend health checks.
+    It validates the token and checks it against the upstream AAEM API.
     """
     try:
         aaem_client = AAEMClient()
         aaem_client.get_agri_areas(token)
-        
+
         ppm_client = PPMClient()
         ppm_client.get_projects(token)
-        
+
         return {"status": "ok", "message": "Token is valid", "user": current_user}
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 401:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired in upstream service"
+                detail="Token expired in upstream service",
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error verifying token with upstream"
+            detail="Error verifying token with upstream",
         )

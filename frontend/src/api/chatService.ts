@@ -1,7 +1,7 @@
 import { axiosClient } from './axiosClient';
 import type { ChatRequest, ChatResponse } from '../models/Chat';
 
-// Định nghĩa cấu trúc chuẩn theo Backend của bạn
+// Define the standard response shape expected from the backend
 export interface StreamEvent {
   event: 'status' | 'token' | 'done' | 'error';
   message?: string;
@@ -18,7 +18,7 @@ export class ChatService {
     return response.data;
   }
 
-  // Generator trả về Object thay vì string thô
+  // Generator that yields objects instead of raw strings
   async *sendStreamMessage(request: ChatRequest): AsyncGenerator<StreamEvent, void, unknown> {
     const token = localStorage.getItem('access_token');
     const baseUrl = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : 'http://127.0.0.1:8000';
@@ -36,7 +36,7 @@ export class ChatService {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
-    let buffer = ''; // Dùng buffer để hứng các mảnh JSON bị cắt đứt giữa chừng
+    let buffer = ''; // Buffer to hold JSON fragments that may be split across chunks
 
     while (true) {
       const { value, done } = await reader.read();
@@ -44,18 +44,18 @@ export class ChatService {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Tách các JSON object (xử lý case backend gửi dính liền }{ )
+      // Split JSON objects (handles cases where the backend emits adjacent }{ fragments)
       buffer = buffer.replace(/}{/g, '}\n{');
       const lines = buffer.split('\n');
 
-      // Giữ lại mảnh cuối cùng trong buffer (vì nó có thể là một JSON chưa hoàn thiện)
+      // Keep the last fragment in the buffer because it may be an incomplete JSON payload
       buffer = lines.pop() || '';
 
       for (const line of lines) {
         let cleanLine = line.trim();
         if (!cleanLine) continue;
 
-        // Xóa tiền tố "data: " nếu backend có thêm vào (Chuẩn SSE)
+        // Remove the "data: " prefix if the backend includes it (standard SSE)
         if (cleanLine.startsWith('data: ')) {
           cleanLine = cleanLine.substring(6).trim();
         }
@@ -63,16 +63,16 @@ export class ChatService {
         if (cleanLine === '[DONE]') continue;
 
         try {
-          // Ép kiểu thành Object và ném ra ngoài
+          // Parse into an object and yield it
           const data = JSON.parse(cleanLine) as StreamEvent;
           yield data;
         } catch (e) {
-          console.warn('Bỏ qua chunk không phải JSON hợp lệ:', cleanLine);
+          console.warn('Skipping invalid non-JSON chunk:', cleanLine);
         }
       }
     }
 
-    // Parse nốt buffer cuối cùng nếu còn sót lại
+    // Parse the final remaining buffer if anything is left
     if (buffer.trim()) {
       let cleanLine = buffer.replace(/^data:\s*/, '').trim();
       if (cleanLine && cleanLine !== '[DONE]') {
@@ -81,12 +81,12 @@ export class ChatService {
     }
   }
 
-  // Stream dành riêng cho Document Chat
+  // Stream dedicated to document chat
   async *sendDocumentStreamMessage(request: ChatRequest, fileIds: string[]): AsyncGenerator<StreamEvent, void, unknown> {
     const token = localStorage.getItem('access_token');
     const baseUrl = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : 'http://127.0.0.1:8000';
     
-    // Gắn thêm file_ids vào request
+    // Attach file_ids to the request payload
     const payload = {
       ...request,
       file_ids: fileIds

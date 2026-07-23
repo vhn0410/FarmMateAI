@@ -3,18 +3,16 @@ from pydantic import BaseModel, Field
 
 class SyncResponse(BaseModel):
     """
-    Schema định nghĩa cấu trúc dữ liệu trả về khi gọi API đồng bộ tài liệu.
+    Schema defining the response payload returned by the document sync API.
     """
 
     status: str = Field(
         ...,
         json_schema_extra={"example": "success"},
-        description="Trạng thái của tiến trình (ví dụ: success, pending, error)",
+        description="Status of the background process (for example: success, pending, error)",
     )
     message: str = Field(
         ...,
-        json_schema_extra={
-            "example": "Hệ thống đang tiến hành xử lý tài liệu chạy ngầm."
-        },
-        description="Thông báo chi tiết gửi đến người dùng/frontend",
+        json_schema_extra={"example": "The system is processing the documents in the background."},
+        description="Detailed status message sent to the user or frontend",
     )

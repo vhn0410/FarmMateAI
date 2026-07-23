@@ -13,14 +13,14 @@ from app.core.config import settings
 router = APIRouter()
 
 
-# Hàm hỗ trợ để FastAPI tự động tiêm dependencies
+# Helper function to let FastAPI inject dependencies automatically
 def get_vector_store_provider():
-    """Factory function để tạo PGVectorProvider instance."""
+    """Factory function to create a PGVectorProvider instance."""
     return PGVectorProvider()
 
 
 def get_document_provider():
-    """Factory function để tạo Document Provider dựa trên cấu hình."""
+    """Factory function to create a document provider based on configuration."""
     if settings.storage_provider.lower() == "s3":
         return S3FileSystemProvider()
     return LocalFileSystemProvider()
@@ -30,7 +30,7 @@ def get_document_use_case(
     vector_store_provider: PGVectorProvider = Depends(get_vector_store_provider),
     document_provider = Depends(get_document_provider),
 ):
-    """Factory function để tạo DocumentUseCase với Dependency Injection."""
+    """Factory function to create a DocumentUseCase with dependency injection."""
     return DocumentUseCase(
         provider=document_provider, vector_store_provider=vector_store_provider
     )
@@ -42,81 +42,71 @@ async def sync_knowledge_from_drive(
     use_case: DocumentUseCase = Depends(get_document_use_case),
 ):
     """
-    Trigger API để đồng bộ dữ liệu nông nghiệp mới nhất từ Google Drive.
+    Trigger an API to sync the latest agricultural data from Google Drive.
     """
     background_tasks.add_task(use_case.sync_documents)
     return SyncResponse(
-        status="success", message="Hệ thống đang tiến hành xử lý tài liệu chạy ngầm."
+        status="success", message="The system is processing documents in the background."
     )
 
 
 @router.get("/knowledge-base/files")
-def get_knowledge_base_files(provider = Depends(get_document_provider)):
-    """Lấy danh sách file PDF từ thư mục nội bộ hoặc S3."""
+def get_knowledge_base_files(provider=Depends(get_document_provider)):
+    """List PDF files from the local directory or S3."""
     files = provider.list_pdf_files()
     return {"status": "success", "data": files}
 
 
 @router.get("/knowledge-base/files/{file_id}/stream")
-def stream_knowledge_base_file(file_id: str, provider = Depends(get_document_provider)):
-    """Stream nội dung file PDF trực tiếp từ thư mục cục bộ hoặc S3."""
+def stream_knowledge_base_file(file_id: str, provider=Depends(get_document_provider)):
+    """Stream the contents of a PDF directly from the local filesystem or S3."""
     encoded_filename = urllib.parse.quote(file_id)
-    headers = {"Content-Disposition": f"inline; filename=\"document.pdf\"; filename*=utf-8''{encoded_filename}"}
+    headers = {
+        "Content-Disposition": f'inline; filename="document.pdf"; filename*=utf-8\'\'{encoded_filename}'
+    }
 
     if isinstance(provider, S3FileSystemProvider):
         try:
             stream = provider.get_pdf_stream(file_id)
-            return StreamingResponse(
-                stream,
-                media_type="application/pdf",
-                headers=headers
-            )
+            return StreamingResponse(stream, media_type="application/pdf", headers=headers)
         except Exception:
             raise HTTPException(status_code=404, detail="File not found on S3")
     else:
         pdf_path = provider.get_pdf_path(file_id)
         if not pdf_path.exists():
             raise HTTPException(status_code=404, detail="File not found locally")
-        return FileResponse(
-            path=pdf_path,
-            media_type="application/pdf",
-            headers=headers
-        )
+        return FileResponse(path=pdf_path, media_type="application/pdf", headers=headers)
 
 
 @router.post("/knowledge-base/files/upload")
 async def upload_knowledge_base_file(
     background_tasks: BackgroundTasks,
-    file: __import__('fastapi').UploadFile = __import__('fastapi').File(...),
+    file: __import__("fastapi").UploadFile = __import__("fastapi").File(...),
     use_case: DocumentUseCase = Depends(get_document_use_case),
-    provider = Depends(get_document_provider)
+    provider=Depends(get_document_provider),
 ):
-    """Upload một file PDF, chạy LlamaParse ngầm, sau đó tự động Vector hóa (Embed)."""
+    """Upload a PDF file, run LlamaParse in the background, and automatically vectorize it."""
     try:
         file_bytes = await file.read()
         saved_name = provider.save_uploaded_pdf(file.filename, file_bytes)
-        
-        # Hàm chạy ngầm: Dịch PDF -> MD, sau đó Sync (Embed) ngay lập tức
+
+        # Background task: convert PDF to MD, then sync and embed it immediately
         def process_and_embed(pdf_name: str, doc_provider, document_use_case: DocumentUseCase):
             doc_provider.process_pdf_to_md(pdf_name)
             document_use_case.sync_documents()
 
-        # Đẩy quá trình xử lý vào Background Task
+        # Add the processing task to the background queue
         background_tasks.add_task(process_and_embed, saved_name, provider, use_case)
-        
-        uploaded_file = {
-            "id": saved_name,
-            "name": saved_name,
-            "status": "processing"
-        }
+
+        uploaded_file = {"id": saved_name, "name": saved_name, "status": "processing"}
         return {"status": "success", "data": uploaded_file}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/knowledge-base/files/{file_id}/markdown")
-def get_knowledge_base_file_markdown(file_id: str, provider = Depends(get_document_provider)):
-    """Lấy nội dung Markdown của file PDF."""
+def get_knowledge_base_file_markdown(file_id: str, provider=Depends(get_document_provider)):
+    """Retrieve the Markdown content of a PDF file."""
     if isinstance(provider, S3FileSystemProvider):
         content = provider.get_md_content(file_id)
         if content is None:
@@ -133,28 +123,32 @@ def get_knowledge_base_file_markdown(file_id: str, provider = Depends(get_docume
 
 @router.get("/knowledge-base/files/{file_id}/chunks")
 def get_knowledge_base_file_chunks(file_id: str):
-    """Lấy danh sách các chunks trong Vector Database của file PDF."""
+    """Get the list of chunks in the vector database for a PDF file."""
     from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
+
     vector_provider = PGVectorProvider()
     chunks = vector_provider.get_chunks_by_file_id(file_id)
     return {"status": "success", "data": chunks}
 
+
 @router.delete("/knowledge-base/files/{file_id}")
 async def delete_knowledge_base_file(
     file_id: str,
-    use_case: DocumentUseCase = Depends(get_document_use_case)
+    use_case: DocumentUseCase = Depends(get_document_use_case),
 ):
-    """Xóa file khỏi bộ nhớ và cơ sở dữ liệu Vector."""
+    """Delete a file from storage and the vector database."""
     try:
         message = use_case.delete_document(file_id)
         return {"status": "success", "message": message}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/knowledge-base/files/{file_id}/graph")
 def get_knowledge_base_file_graph(file_id: str):
-    """Lấy dữ liệu Neo4j Knowledge Graph của file PDF."""
+    """Get the Neo4j knowledge graph data for a PDF file."""
     from app.infrastructure.vector_store.graph_provider import Neo4jGraphProvider
+
     graph_provider = Neo4jGraphProvider()
     graph_data = graph_provider.get_graph_by_file_id(file_id)
     return {"status": "success", "data": graph_data}

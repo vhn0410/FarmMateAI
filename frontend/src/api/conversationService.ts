@@ -7,13 +7,13 @@ interface ConversationApiResponse {
   data: Conversation[];
 }
 
-// BỔ SUNG: Interface cho API chi tiết hội thoại
+// Additional interface for detailed conversation API responses
 export interface ConversationDetailResponse {
   status: string;
   conversation_id: string;
   messages: {
     id: string;
-    sender_type: string; // Backend trả về sender_type
+    sender_type: string; // Backend returns sender_type
     content: string;
     created_at: string;
   }[];
@@ -25,7 +25,7 @@ export class ConversationService {
     return response.data.data; 
   }
 
-  // BỔ SUNG: Hàm lấy tin nhắn của 1 hội thoại cụ thể
+  // Additional helper to fetch messages for a specific conversation
   async getConversationById(id: string): Promise<ConversationDetailResponse> {
     const response = await axiosClient.get<ConversationDetailResponse>(`/api/v1/conversations/${id}/messages`);
     return response.data;

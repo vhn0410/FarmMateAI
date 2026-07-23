@@ -1,81 +1,138 @@
-## Project structure
-```
-farm-mate-ai/
-├── frontend/                  # Code Frontend (Next.js/React/Vue)
-└── backend/
-    ├── .env                   # Chứa các biến môi trường (DATABASE_URL, API_KEY...)
-    ├── requirements.txt       # Quản lý thư viện (hoặc pyproject.toml)
-    ├── main.py                # Entrypoint của FastAPI (Nằm GỌN trong backend)
-    ├── scripts/               # Các task chạy ngầm / offline
-    │   └── cron_ingest_drive.py 
-    │   └── cron_evaluate_rag.py
-    ├── evaluations/ 
-    │   └── dataset
-    │   └── 01_run_experiments.py
-    │   └── 02_ragas_evaluator.py
-    │
-    ├── tests/                # THƯ MỤC TEST MỚI
-    ├── __init__.py
-    ├── conftest.py       # Nơi chứa các cấu hình dùng chung (Fixtures)
-    ├── unit/             # Test từng hàm nhỏ (Rất nhanh)
-    │   ├── test_vector_db.py
-    │   └── test_weather_skill.py
-    └── integration/      # Test API Endpoints (Gắn kết các thành phần)
-    │   └── test_chat_api.py
-    └── app/
-        ├── api/               # 1. PRESENTATION LAYER (FastAPI Controllers)
-        │   └── v1/
-        │       ├── endpoints/
-        │       │   ├── chat.py      # Xử lý HTTP Request/Response cho chat
-        │       │   └── documents.py # API trigger update dữ liệu
-        │       └── router.py
-        │
-        ├── application/       # 2. USE CASES LAYER (Logic luồng công việc)
-        │   ├── chat/
-        │   │   └── use_case.py      # Điều phối: Lấy history -> Gọi Agent -> Lưu DB
-        │   │   └── response_enhancer.py      # Điều phối: Lấy history -> Gọi Agent -> Lưu DB
+﻿<p align="center">
+  <a href="" rel="noopener">
+    <img width="200px" height="200px" src="https://i.imgur.com/6wj0hh6.jpg" alt="FarmMate AI logo">
+  </a>
+</p>
 
-        │   └── documents/
-        │       └── use_case.py      # Luồng xử lý update tài liệu
-        │
-        ├── domain/            # 3. CORE LAYER (Thực thể & Giao diện cốt lõi - KHÔNG phụ thuộc lib ngoài)
-        │   ├── entities/            
-        │   │   ├── message.py       # Object tin nhắn
-        │   │   └── conversation.py  # Object phiên chat
-        │   └── interfaces/          
-        │       ├── llm.py           # Interface cho LLM
-        │       ├── vector_db.py     # Interface cho VectorDB (Retriever)
-        │       ├── document_provider.py     
-        │       └── repository.py    # Interface lưu trữ Database
-        │
-        ├── infrastructure/    # 4. IMPLEMENTATION LAYER (Code thực thi giao tiếp ra ngoài)
-        │   ├── db/
-        │   │   └── postgres_repo.py # Thực thi giao tiếp PostgreSQL (implement repository.py)
-        │   ├── vector_store/
-        │   │   └── pgvector_db.py   # Khởi tạo và kết nối PGVector (implement vector_db.py)
-        │   ├── llm/
-        │   │   └── openai_client.py # Kết nối API OpenAI (implement llm.py)
-        │   └── external/
-        │       └── google_drive.py  # Hàm tải dữ liệu từ Google Drive
-        │
-        ├── agents/            # 5. ORCHESTRATION & SKILLS (Trái tim AI)
-        │   ├── orchestrator.py      # Xây dựng luồng tác vụ cho agent (vd: sử dụng LangGraph làm supervisor)
-        │   ├── memory.py            # Quản lý ngữ cảnh hội thoại cho Bot
-        │   └── skills/              # Nơi chứa các công cụ mở rộng (Plug-and-play)
-        │       ├── base.py          # Interface chung (BaseSkill)
-        │       ├── rag_agriculture/ 
-        │       │   └── tool.py      # RAG skill tích hợp retriever
-        │       ├── iot_crawler/
-        │       │   └── tool.py      # Skill gọi API quan trắc
-        │       └── cv_service/
-        │           └── tool.py      # Skill gọi API phân tích ảnh
-        │
-        ├── schemas/           # DATA TRANSFER OBJECTS (DTOs / Pydantic Models)
-        │   ├── chat_dto.py          # Schema validate request/response ở API
-        │   └── document_dto.py
-        │
-        └── core/              # CROSS-CUTTING (Các cấu hình hệ thống dùng chung)
-            ├── config.py            # Load biến môi trường từ .env bằng pydantic-settings
-            ├── security.py          # Phân quyền, JWT
-            └── exceptions.py        # Xử lý lỗi tập trung
-```
+<h3 align="center">FarmMate AI</h3>
+
+<div align="center">
+
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
+
+</div>
+
+---
+
+<p align="center">FarmMate AI is a thesis project for smart agricultural advisory. It combines a Python FastAPI backend, AI/knowledge graph services, and a React + Vite frontend to support intelligent chat, document retrieval, and knowledge visualization.</p>
+
+## 📝 Table of Contents
+
+- [About](#about)
+- [Architecture](#architecture)
+- [Getting Started](#getting-started)
+- [Development](#development)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Built Using](#built-using)
+- [Authors](#authors)
+- [Acknowledgements](#acknowledgements)
+
+## 🧐 About <a name="about"></a>
+
+FarmMate AI is an agricultural AI platform built to help farmers and agronomists ask questions, explore domain knowledge, and navigate farm planning guidance. The backend ingests documents, manages knowledge base workflows with Neo4j, and exposes an API for conversational retrieval. The frontend delivers an interactive chat UI, conversation history, and knowledge visualization tools.
+
+## 🏗️ Architecture <a name="architecture"></a>
+
+This repository follows a monorepo layout with two main applications:
+
+- ackend/
+  - FastAPI backend application with API routing under /api/v1
+  - Includes database initialization, authentication, document ingestion, and AI retrieval logic
+  - Uses Neo4j for graph-based knowledge storage and LangChain for LLM orchestration
+- rontend/
+  - React + Vite frontend application using Tailwind CSS, Zustand, and React Router
+  - Provides chat, conversation history, and knowledge exploration interfaces
+- docker-compose.dev.yml
+  - Development stack for backend, frontend, and Neo4j with hot reload
+- docker-compose.yml
+  - Production container definitions for backend, frontend, and Neo4j
+
+## 🚀 Getting Started <a name="getting-started"></a>
+
+### Development with Docker
+
+`powershell
+docker compose -f docker-compose.dev.yml up --build
+`
+
+Then access:
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- Neo4j Browser: http://localhost:7474
+
+### Backend local setup
+
+`powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+`
+
+Run the backend locally:
+
+`powershell
+uv sync && uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+`
+
+### Frontend local setup
+
+`powershell
+cd frontend
+npm install
+npm run dev -- --host
+`
+
+## 🧪 Testing <a name="testing"></a>
+
+### Backend tests
+
+`powershell
+cd backend
+.\.venv\Scripts\Activate
+pytest
+`
+
+### Frontend checks
+
+`powershell
+cd frontend
+npm run lint
+`
+
+## 🚢 Deployment <a name="deployment"></a>
+
+### Production deployment
+
+`powershell
+docker compose up --build
+`
+
+### Production services
+
+- ackend runs FastAPI on port 8000
+- rontend serves the React app on port 80
+- 
+eo4j exposes ports 7474 and 7687
+
+> Make sure ackend/.env is populated with required environment variables before production deployment.
+
+## ⛏️ Built Using <a name="built-using"></a>
+
+- Python 3.14+, FastAPI, Uvicorn, LangChain, Neo4j, SQLAlchemy, Alembic
+- React 19, Vite, Tailwind CSS, Zustand, React Router
+- Docker Compose for local and production orchestration
+- Neo4j graph database for agricultural knowledge modeling
+
+## ✍️ Authors <a name="authors"></a>
+
+- FarmMate AI thesis project team
+
+## 🎉 Acknowledgements <a name="acknowledgements"></a>
+
+- Built as part of a university thesis project in agricultural AI.
+- Uses open source tools for AI, graph databases, and frontend development.

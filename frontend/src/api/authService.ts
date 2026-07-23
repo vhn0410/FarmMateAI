@@ -5,7 +5,7 @@ import { axiosClient } from './axiosClient';
 
 export class AuthService implements IAuthRepository {
   async login(credentials: LoginRequest): Promise<TokenResponse> {
-    // Ép kiểu dữ liệu về dạng x-www-form-urlencoded theo đúng OpenAPI Schema
+    // Force the payload to x-www-form-urlencoded to match the OpenAPI schema
     const params = new URLSearchParams();
     params.append('username', credentials.username);
     params.append('password', credentials.password);

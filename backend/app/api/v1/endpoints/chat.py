@@ -11,11 +11,10 @@ router = APIRouter()
 
 
 def get_chat_use_case(db: Session = Depends(get_db)):
-    # Lắp ráp OpenAI Client ở đây
+    # Build the OpenAI client here
     llm_provider = OpenAIClient(model="gpt-4o-mini", temperature=0.7)
-    # Tiêm vào Use Case
+    # Inject it into the use case
     return ChatUseCase(llm_provider=llm_provider, db=db)
-
 
 
 @router.post("/", response_model=ChatResponse)
@@ -26,8 +25,8 @@ async def chat_with_farmmate(
     token: str = Depends(oauth2_scheme),
 ):
     """
-    API gửi câu hỏi cho AI Nông nghiệp.
-    AI sẽ tự động dùng RAG Skill để tra cứu dữ liệu nếu cần.
+    API to send a question to the agricultural AI assistant.
+    The AI will automatically use the RAG skill to retrieve data when needed.
     """
     response = await chat_use_case.process_chat(request, current_user, token)
     return response
@@ -41,12 +40,12 @@ async def stream_chat_with_farmmate(
     token: str = Depends(oauth2_scheme),
 ):
     """
-    API Streaming: Trả về từng chữ (SSE).
-    Không dùng response_model vì dữ liệu là luồng liên tục.
+    Streaming API: emits text incrementally using SSE.
+    It does not use response_model because the response is a continuous stream.
     """
     return StreamingResponse(
         use_case.stream_chat(request, current_user, token),
-        media_type="text/event-stream",  # Định dạng bắt buộc để trình duyệt hiểu đây là luồng SSE
+        media_type="text/event-stream",  # Required format so browsers understand this is an SSE stream
     )
 
 
