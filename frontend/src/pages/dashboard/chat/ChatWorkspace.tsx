@@ -25,7 +25,7 @@ const MessageContent: React.FC<{ content: string; onAction: (query: string) => v
                     e.preventDefault();
                     onAction(query);
                   }}
-                  className="inline-block mt-1 mb-1 px-3 py-1.5 bg-blue-50 text-blue-600 font-medium text-sm rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm cursor-pointer no-underline"
+                  className="inline-block mt-1 mb-1 px-3 py-1.5 bg-teal-50 text-teal-600 font-medium text-sm rounded-lg border border-teal-200 hover:bg-teal-100 transition-colors shadow-sm cursor-pointer no-underline"
                 >
                   {children}
                 </button>
@@ -118,7 +118,7 @@ export const ChatWorkspace: React.FC = () => {
         className="desktop-sidebar flex-col w-[340px] shrink-0 bg-white m-2 rounded-2xl shadow-sm overflow-hidden"
       >
         <div className="p-5 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
+          <h2 className="text-xl font-bold text-teal-600">Conversations</h2>
           <button 
             onClick={() => startNewChat()}
             className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
@@ -136,12 +136,12 @@ export const ChatWorkspace: React.FC = () => {
                 onClick={() => loadConversation(conv.id)}
                 className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
                   isActive
-                    ? 'bg-blue-50 border border-blue-100 shadow-sm'
+                    ? 'bg-teal-50 border border-teal-100 shadow-sm'
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
                 <div className="flex-1 min-w-0 pr-2">
-                  <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
+                  <h3 className={`font-semibold text-sm mb-1 truncate ${isActive ? 'text-teal-700' : 'text-gray-800'}`}>
                     {conv.title}
                   </h3>
                   <p className="text-xs text-gray-400 line-clamp-2">
@@ -167,7 +167,7 @@ export const ChatWorkspace: React.FC = () => {
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-5 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-xl font-bold text-blue-600">Conversations</h2>
+          <h2 className="text-xl font-bold text-teal-600">Conversations</h2>
           <div className="flex gap-2">
             <button onClick={() => setIsMobileSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -191,7 +191,7 @@ export const ChatWorkspace: React.FC = () => {
                   onClick={() => { loadConversation(conv.id); setIsMobileSidebarOpen(false); }}
                   className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex justify-between items-start group ${
                     isActive
-                      ? 'bg-blue-50 border border-blue-100 shadow-sm'
+                      ? 'bg-teal-50 border border-teal-100 shadow-sm'
                       : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
@@ -230,7 +230,7 @@ export const ChatWorkspace: React.FC = () => {
             {/* Mobile-only: open conversations drawer — placed on RIGHT side, away from main menu */}
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="md:hidden relative p-2 text-gray-500 hover:bg-white hover:text-blue-600 rounded-xl transition-colors bg-white/70 shadow-sm"
+              className="md:hidden relative p-2 text-gray-500 hover:bg-white hover:text-teal-600 rounded-xl transition-colors bg-white/70 shadow-sm"
               title="Conversations"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,7 +238,7 @@ export const ChatWorkspace: React.FC = () => {
               </svg>
               {/* Badge showing conversation count */}
               {conversations.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-teal-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {conversations.length > 9 ? '9+' : conversations.length}
                 </span>
               )}
@@ -254,8 +254,8 @@ export const ChatWorkspace: React.FC = () => {
             
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center text-center mt-20 text-gray-500 space-y-4">
-                <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mb-2">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                <div className="h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center mb-2">
+                  <svg className="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                 </div>
                 <h3 className="text-2xl font-semibold text-gray-700">How can I help you today?</h3>
                 <p>Send a message to start chatting with FarmMate AI.</p>
@@ -270,7 +270,7 @@ export const ChatWorkspace: React.FC = () => {
                   {/* AI STYLED MESSAGE */}
                   {msg.role === 'bot' && (
                     <div className="flex items-start gap-3 w-full">
-                      <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-gray-100 text-blue-600">
+                      <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-gray-100 text-teal-600">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h2v2H9V9zm4 0h2v2h-2V9z"></path></svg>
                       </div>
                       
@@ -280,18 +280,18 @@ export const ChatWorkspace: React.FC = () => {
                           <div className="bg-white/60 backdrop-blur-sm border border-white/40 rounded-xl p-3 text-sm shadow-sm">
                             <div className="flex items-center gap-2 mb-1.5 font-semibold text-gray-600">
                               {isChatLoading && messages[messages.length - 1].id === msg.id ? (
-                                <svg className="w-4 h-4 animate-spin text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 animate-spin text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                               ) : (
-                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                               )}
                               Processing...
                             </div>
                             <ul className="space-y-0.5 ml-6 list-disc text-gray-500 font-mono text-xs">
                               {msg.statuses.map((status, idx) => (
-                                <li key={idx} className={`${idx === msg.statuses!.length - 1 && isChatLoading ? 'animate-pulse text-blue-600 font-medium' : ''}`}>
+                                <li key={idx} className={`${idx === msg.statuses!.length - 1 && isChatLoading ? 'animate-pulse text-teal-600 font-medium' : ''}`}>
                                   {status}
                                 </li>
                               ))}
@@ -309,9 +309,9 @@ export const ChatWorkspace: React.FC = () => {
                         {/* Loading dots */}
                         {isChatLoading && msg.id === messages[messages.length - 1].id && (!msg.statuses || msg.statuses.length === 0) && !msg.content && (
                           <div className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-50 w-fit flex items-center gap-1.5">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
                           </div>
                         )}
                       </div>
@@ -356,7 +356,7 @@ export const ChatWorkspace: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isChatLoading || !input.trim()}
-                  className="p-2 ml-1 text-blue-600 hover:bg-blue-50 rounded-lg disabled:text-gray-300 disabled:bg-transparent disabled:cursor-not-allowed transition-colors"
+                  className="p-2 ml-1 text-teal-600 hover:bg-teal-50 rounded-lg disabled:text-gray-300 disabled:bg-transparent disabled:cursor-not-allowed transition-colors"
                 >
                   <svg className="w-5 h-5 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>

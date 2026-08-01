@@ -5,7 +5,8 @@ class Settings(BaseSettings):
     # LLM Configuration
     openai_api_key: str
     openai_api_base: str | None = None
-    huggingface_embedding_model: str = "keepitreal/vietnamese-sbert"
+    # huggingface_embedding_model: str = "keepitreal/vietnamese-sbert"
+    huggingface_embedding_model: str = "contextboxai/halong_embedding"
     llama_cloud_api_key: str | None = None
 
     # Database Configuration

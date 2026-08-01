@@ -133,13 +133,13 @@ def get_knowledge_base_file_markdown(file_id: str, provider=Depends(get_document
 
 
 @router.get("/knowledge-base/files/{file_id}/chunks")
-def get_knowledge_base_file_chunks(file_id: str):
-    """Get the list of chunks in the vector database for a PDF file."""
+def get_knowledge_base_file_chunks(file_id: str, page: int = 1, limit: int = 50):
+    """Get the list of chunks in the vector database for a PDF file with pagination."""
     from app.infrastructure.vector_store.pgvector_provider import PGVectorProvider
 
     vector_provider = PGVectorProvider()
-    chunks = vector_provider.get_chunks_by_file_id(file_id)
-    return {"status": "success", "data": chunks}
+    result = vector_provider.get_chunks_by_file_id(file_id, page=page, limit=limit)
+    return {"status": "success", "data": result["data"], "pagination": result["pagination"]}
 
 
 @router.delete("/knowledge-base/files/{file_id}")

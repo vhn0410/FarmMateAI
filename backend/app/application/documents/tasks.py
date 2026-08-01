@@ -28,7 +28,10 @@ def process_and_embed_task(self, pdf_name: str):
         
         # Step 2: Read MD file, Chunking, and save to Vector Store + Graph
         print(f"Start syncing Vector DB for file: {pdf_name}", flush=True)
-        use_case.sync_documents()
+        sync_result = use_case.sync_documents()
+        
+        if sync_result != "Success":
+            raise Exception(f"Failed to sync vector DB: {sync_result}")
         
         print(f"Successfully processed all parts for {pdf_name}!", flush=True)
         return {"status": "success", "file": pdf_name}

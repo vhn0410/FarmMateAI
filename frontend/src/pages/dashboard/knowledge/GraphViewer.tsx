@@ -82,11 +82,11 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({ graphData, activeSourc
   const getColorByLabel = (label: string) => {
     if (!label) return '#9ca3af';
     switch (label.toLowerCase().trim()) {
-      case 'crop': return '#22c55e'; // green-500
+      case 'crop': return '#22c55e'; // teal-500
       case 'disease': return '#ef4444'; // red-500
       case 'pesticide': return '#eab308'; // yellow-500
       case 'fertilizer': return '#f97316'; // orange-500
-      case 'location': return '#3b82f6'; // blue-500
+      case 'location': return '#3b82f6'; // teal-500
       case 'farmingtechnique': return '#8b5cf6'; // violet-500
       case 'soiltype': return '#84cc16'; // lime-500
       case 'weathercondition': return '#06b6d4'; // cyan-500

@@ -28,9 +28,9 @@ export const knowledgeService = {
     const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/markdown`);
     return response.data.data;
   },
-  getFileChunks: async (fileId: string): Promise<any[]> => {
-    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/chunks`);
-    return response.data.data;
+  getFileChunks: async (fileId: string, page: number = 1, limit: number = 50): Promise<{data: any[], pagination: any}> => {
+    const response = await axiosClient.get(`/api/v1/documents/knowledge-base/files/${fileId}/chunks?page=${page}&limit=${limit}`);
+    return { data: response.data.data, pagination: response.data.pagination };
   },
 
   getFileGraph: async (fileId: string): Promise<{nodes: any[], links: any[]}> => {

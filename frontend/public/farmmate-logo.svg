@@ -1,0 +1,28 @@
+<svg width="300" height="100" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e" /> <!-- tailwind teal-700 -->
+      <stop offset="100%" stop-color="#14b8a6" /> <!-- tailwind teal-500 -->
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(10, 20)">
+    <!-- Tractor Icon -->
+    <path d="M15 35 L45 35 C48 35 50 37 50 40 L50 41 C50 43.5 48 45.5 45.5 45.3 L33.3 43.9" fill="none" stroke="url(#primaryGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M19 26.2 V20.6 C19 19.8 18.2 19 17.2 19 H16.8 C15.8 19 15 19.8 15 20.6 V36" fill="none" stroke="url(#primaryGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M21 42 L20.2 38.2 C19.6 35.4 17.2 33.4 14.4 33 L4.2 31.4" fill="none" stroke="url(#primaryGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="34" cy="50" r="7" fill="none" stroke="url(#primaryGradient)" stroke-width="4"/>
+    <circle cx="10" cy="40" r="10" fill="none" stroke="url(#primaryGradient)" stroke-width="4"/>
+    <circle cx="10" cy="40" r="4" fill="none" stroke="url(#primaryGradient)" stroke-width="4"/>
+    <circle cx="10" cy="40" r="0.5" fill="url(#primaryGradient)"/>
+    <circle cx="34" cy="50" r="0.5" fill="url(#primaryGradient)"/>
+  </g>
+
+  <!-- Text -->
+  <text x="80" y="55" font-family="'Inter', 'Roboto', sans-serif" font-size="32" letter-spacing="-0.5">
+    <tspan font-weight="800" fill="#0f766e">FarmMate</tspan>
+    <tspan font-weight="400" fill="#14b8a6" dx="4">AI</tspan>
+  </text>
+  
+  <text x="82" y="75" font-family="'Inter', 'Roboto', sans-serif" font-weight="500" font-size="12" fill="#6b7280" letter-spacing="3.5">SINCE 2026</text>
+</svg>

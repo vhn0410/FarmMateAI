@@ -19,7 +19,7 @@ export const Layout: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-[#F3F6FD] font-sans overflow-hidden relative w-full">
+    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden relative w-full">
       
       {/* MOBILE MENU OVERLAY */}
       {isMobileMenuOpen && (
@@ -32,7 +32,7 @@ export const Layout: React.FC = () => {
       {/* MOBILE TOGGLE BUTTON (Floats on mobile) */}
       <button 
         onClick={() => setIsMobileMenuOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2.5 bg-white rounded-xl shadow-md border border-gray-100 text-gray-700 hover:text-blue-600 transition-colors"
+        className="md:hidden fixed top-4 left-4 z-40 p-2.5 bg-white rounded-xl shadow-md border border-gray-100 text-gray-700 hover:text-teal-600 transition-colors"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
       </button>
@@ -42,11 +42,12 @@ export const Layout: React.FC = () => {
         
         {/* LOGO */}
         <div className="p-6 flex items-center justify-between gap-3 border-b border-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-            </div>
-            <span className="text-xl font-bold text-gray-800">FarmMate AI</span>
+          <div className="flex items-center">
+            <img
+              src="/farmmate-logo.svg"
+              alt="FarmMate AI logo"
+              className="h-12 w-auto object-contain drop-shadow-sm"
+            />
           </div>
           
           <button 
@@ -72,7 +73,7 @@ export const Layout: React.FC = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-600'
+                        ? 'bg-teal-50 text-teal-600'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`
                   }
@@ -99,7 +100,7 @@ export const Layout: React.FC = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-colors ${
                         isActive
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-teal-50 text-teal-600'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`
                     }
@@ -123,7 +124,7 @@ export const Layout: React.FC = () => {
             className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm">
+              <div className="h-10 w-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm shadow-sm">
                 {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
               </div>
               <div className="text-sm font-semibold text-gray-800 truncate max-w-[120px] text-left">
