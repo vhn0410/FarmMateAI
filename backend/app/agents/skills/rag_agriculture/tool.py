@@ -31,13 +31,13 @@ class AgricultureRAGSkill(BaseSkill):
         self.vector_store_provider = vector_store_provider
         self.llm_provider = llm_provider
 
-        # Initialize Parent document Retriever (Đã tích hợp sẵn Cross-Encoder Reranker)
+        # Initialize Parent document Retriever (Already integrated with Cross-Encoder Reranker)
         logging.info(
             "Initializing Postgres Parent document Retriever (Vector + FTS + Reranker)..."
         )
         self.retriever = self.vector_store_provider.get_parent_document_retriever()
 
-        # Khởi tạo Graph Provider cho Graph Path
+        # Initialize Graph Provider for Graph Path
         from app.infrastructure.vector_store.graph_provider import Neo4jGraphProvider
         self.graph_provider = Neo4jGraphProvider()
 
@@ -96,21 +96,21 @@ class AgricultureRAGSkill(BaseSkill):
         tokens_used = {"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
         try:
-            agent_actions.append(f"Khởi chạy Parallel Retrieval cho câu hỏi: '{query[:50]}...'")
+            agent_actions.append(f"Starting Parallel Retrieval for query: '{query[:50]}...'")
 
             # 1. Path 1: Graph Retrieval
-            agent_actions.append("Đang truy vấn Knowledge Graph (Neo4j)...")
+            agent_actions.append("Querying Knowledge Graph (Neo4j)...")
             graph_context = self.graph_provider.query_graph_context(query)
             if graph_context:
-                agent_actions.append(f"Tìm thấy Graph Facts:\n{graph_context}")
+                agent_actions.append(f"Found Graph Facts:\n{graph_context}")
             else:
-                agent_actions.append("Không tìm thấy thông tin phù hợp trong Knowledge Graph.")
+                agent_actions.append("No relevant information found in Knowledge Graph.")
 
             # 2. Path 2: Vector Retrieval (PDR + Reranker)
-            agent_actions.append("Đang truy vấn Vector DB (PostgreSQL)...")
+            agent_actions.append("Querying Vector DB (PostgreSQL)...")
             vector_docs = self.retriever.invoke(query)
             
-            # Xử lý Vector Docs và Sources
+            # Process Vector Docs and Sources
             vector_context_parts = []
             for i, doc in enumerate(vector_docs):
                 content = doc.page_content.replace("\n", " ")
@@ -124,16 +124,16 @@ class AgricultureRAGSkill(BaseSkill):
                     sources.append(source_entry)
                     
             vector_context = "\n\n".join(vector_context_parts)
-            agent_actions.append(f"Đã lấy được {len(vector_docs)} văn bản từ Vector DB.")
+            agent_actions.append(f"Retrieved {len(vector_docs)} documents from Vector DB.")
 
             # 3. Context Merging
             combined_context = "=== GRAPH FACTS ===\n" + (graph_context if graph_context else "None") + "\n\n"
             combined_context += "=== VECTOR TEXT ===\n" + (vector_context if vector_context else "None")
 
             # 4. LLM Synthesis
-            agent_actions.append("Đang tổng hợp câu trả lời bằng LLM với Combined Context...")
+            agent_actions.append("Synthesizing answer using LLM with Combined Context...")
             
-            # Format prompt và invoke LLM
+            # Format prompt and invoke LLM
             prompt = self.prompt_template.format_messages(context=combined_context, input=query)
             
             with get_openai_callback() as cb:
@@ -144,7 +144,7 @@ class AgricultureRAGSkill(BaseSkill):
                 tokens_used["completion_tokens"] = cb.completion_tokens
 
             answer = response.content
-            agent_actions.append("Đã tạo câu trả lời thành công.")
+            agent_actions.append("Answer generated successfully.")
 
             return SkillResult(
                 answer=answer,

@@ -95,22 +95,22 @@ class PostgresHybridRetriever(BaseRetriever):
 
                     docs.append(Document(page_content=row.document, metadata=metadata))
             # --- LOG CHI TIẾT ĐỂ BẠN THẤY TỪ KHÓA ---
-            print("\n🚀 [HYBRID SEARCH RUNNING]")
-            print(f"👉 Câu hỏi: {query}")
+            print("\n🚀 [HYBRID SEARCH RUNNING]", flush=True)
+            print(f"👉 Câu hỏi: {query}", flush=True)
             for i, doc in enumerate(docs):
                 print(
-                    f"--- Top {i + 1} | Điểm RRF: {doc.metadata.get('hybrid_rrf_score'):.4f} ---"
+                    f"--- Top {i + 1} | Điểm RRF: {doc.metadata.get('hybrid_rrf_score'):.4f} ---", flush=True
                 )
                 print(
-                    f"  > Hạng Vector: {doc.metadata.get('vector_rank')} | Hạng Keyword: {doc.metadata.get('keyword_rank')}"
+                    f"  > Hạng Vector: {doc.metadata.get('vector_rank')} | Hạng Keyword: {doc.metadata.get('keyword_rank')}", flush=True
                 )
                 if "fts_highlight" in doc.metadata:
-                    print(f"  > 🔍 Keyword Match: {doc.metadata['fts_highlight']}")
+                    print(f"  > 🔍 Keyword Match: {doc.metadata['fts_highlight']}", flush=True)
                 else:
-                    print("  > 🤖 Chỉ tìm thấy bằng Vector Semantics (Ngữ nghĩa)")
-            print("-" * 40 + "\n")
+                    print("  > 🤖 Chỉ tìm thấy bằng Vector Semantics (Ngữ nghĩa)", flush=True)
+            print("-" * 40 + "\n", flush=True)
         except Exception as e:
-            print(f"[Hybrid Retriever Lỗi]: {e}")
+            print(f"[Hybrid Retriever Lỗi]: {e}", flush=True)
 
         return docs
 
@@ -202,7 +202,7 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
                     child_docs.append(Document(page_content=row.document, metadata=metadata))
                     
         except Exception as e:
-            print(f"[HybridParentDocumentRetriever Lỗi SQL]: {e}")
+            print(f"[HybridParentDocumentRetriever Lỗi SQL]: {e}", flush=True)
             return []
 
         # Lọc ra danh sách doc_id (Parent ID)
@@ -220,8 +220,8 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
         parent_docs_result = self.docstore.mget(parent_ids)
         parent_docs = []
         
-        print(f"\n🚀 [HYBRID PARENT SEARCH RUNNING] 🚀")
-        print(f"👉 Câu hỏi: {query}")
+        print(f"\n🚀 [HYBRID PARENT SEARCH RUNNING] 🚀", flush=True)
+        print(f"👉 Câu hỏi: {query}", flush=True)
         
         for i, p_doc in enumerate(parent_docs_result):
             if p_doc is not None:
@@ -237,13 +237,18 @@ class HybridParentDocumentRetriever(ParentDocumentRetriever):
                 })
                 parent_docs.append(p_doc)
                 
-                print(f"--- Parent Doc: {p_doc.metadata.get('file_id', p_id)} | RRF: {meta.get('hybrid_rrf_score'):.4f} ---")
+                print(f"--- Parent Doc: {p_doc.metadata.get('file_id', p_id)} | RRF: {meta.get('hybrid_rrf_score'):.4f} ---", flush=True)
+                v_rank = meta.get('vector_rank')
+                k_rank = meta.get('keyword_rank')
+                v_str = f"Top {v_rank}" if v_rank else "Không tìm thấy"
+                k_str = f"Top {k_rank}" if k_rank else "Không tìm thấy"
+                
+                print(f"  > 📊 Đóng góp - Vector Semantic: {v_str} | Keyword: {k_str}", flush=True)
+                
                 if meta.get("fts_highlight"):
-                    print(f"  > 🔍 Keyword Match: {meta.get('fts_highlight')}")
-                else:
-                    print("  > 🤖 Chỉ tìm thấy bằng Vector Semantics (Ngữ nghĩa)")
+                    print(f"  > 🔍 Trích đoạn Keyword: {meta.get('fts_highlight')}", flush=True)
 
-        print("-" * 50 + "\n")
+        print("-" * 50 + "\n", flush=True)
         
         # Trả về theo thứ tự đã sort RRF của child_docs (mget bảo toàn thứ tự parent_ids)
         # Giới hạn top_k parent docs

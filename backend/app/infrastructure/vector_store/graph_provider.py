@@ -1,30 +1,44 @@
 import os
 import logging
 from typing import List, Any
-from langchain_community.graphs import Neo4jGraph
+from langchain_neo4j import Neo4jGraph, Neo4jVector
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from app.core.config import settings
+from app.infrastructure.vector_store.pgvector_provider import get_huggingface_embeddings
 
 logger = logging.getLogger(__name__)
 
 class Neo4jGraphProvider:
     """
-    Quản lý kết nối tới Neo4j và cung cấp các hàm truy vấn Graph RAG.
+    Manages connection to Neo4j and provides Graph RAG query functions.
     """
 
     def __init__(self):
         try:
-            # Lấy thông tin kết nối Neo4j từ biến môi trường (cần thiết lập trong .env)
-            uri = os.environ.get("NEO4J_URI", "bolt://neo4j:7687")
-            username = os.environ.get("NEO4J_USERNAME", "neo4j")
-            password = os.environ.get("NEO4J_PASSWORD", "farmmatepassword")
+            # Get Neo4j connection info from environment variables
+            self.uri = os.environ.get("NEO4J_URI", "bolt://neo4j:7687")
+            self.username = os.environ.get("NEO4J_USERNAME", "neo4j")
+            self.password = os.environ.get("NEO4J_PASSWORD", "farmmatepassword")
 
             self.graph = Neo4jGraph(
-                url=uri,
-                username=username,
-                password=password
+                url=self.uri,
+                username=self.username,
+                password=self.password
             )
+            
+            # Đảm bảo Vector Index luôn tồn tại kể cả khi Graph chưa có data
+            try:
+                self.graph.query(
+                    "CREATE VECTOR INDEX entity_index IF NOT EXISTS "
+                    "FOR (n:__Entity__) ON (n.embedding) "
+                    "OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}"
+                )
+            except Exception as index_e:
+                logger.warning(f"Could not create entity_index automatically: {index_e}")
+            
+            # Load embeddings for Vector Search on Graph Nodes
+            self.embeddings = get_huggingface_embeddings(settings.huggingface_embedding_model)
             
             self.llm = ChatOpenAI(
                 model="gpt-4o-mini",
@@ -32,29 +46,28 @@ class Neo4jGraphProvider:
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_api_base
             )
-            logger.info("Đã kết nối thành công tới Neo4j Graph Database.")
+            logger.info("Successfully connected to Neo4j Graph Database.")
         except Exception as e:
-            logger.error(f"Lỗi khi khởi tạo Neo4jGraphProvider: {e}")
+            logger.error(f"Error initializing Neo4jGraphProvider: {e}")
             self.graph = None
 
     def add_graph_documents(self, graph_documents: List[Any]):
         """
-        Lưu danh sách GraphDocument (nodes, relationships) vào Neo4j.
-        Neo4jGraph sẽ tự động merge các node/relationship bị trùng lặp dựa trên tên.
-        Tuy nhiên, để append provenance (sources), ta cần gọi lệnh cypher tuỳ chỉnh hoặc 
-        dựa vào cơ chế của LLMGraphTransformer nếu đã gán thuộc tính.
+        Saves a list of GraphDocuments (nodes, relationships) to Neo4j.
+        Neo4jGraph will automatically merge duplicate nodes/relationships based on their names.
+        However, to append provenance (sources), we execute a custom Cypher query.
         """
         if not self.graph:
-            logger.error("Không có kết nối Neo4j. Không thể lưu Graph.")
+            logger.error("No Neo4j connection. Cannot save Graph.")
             raise Exception("Neo4j database is offline or unreachable.")
             
         try:
-            # baseEntityLabel=True giúp tạo thêm một Label chung cho tất cả các Node (vd: __Entity__)
+            # baseEntityLabel=True adds a common Label to all Nodes (e.g., __Entity__)
             self.graph.add_graph_documents(graph_documents, baseEntityLabel=True)
-            logger.info(f"Đã chèn {len(graph_documents)} Graph Documents vào Neo4j.")
+            logger.info(f"Inserted {len(graph_documents)} Graph Documents into Neo4j.")
             
-            # Ghi nhận provenance: Một relationship có thể xuất phát từ nhiều file khác nhau
-            # Do đó ta lưu file_id vào mảng `file_ids` trên relationship
+            # Record provenance: A relationship can originate from multiple files
+            # Therefore we save file_id into a `file_ids` array on the relationship
             edges_data = []
             for doc in graph_documents:
                 for rel in doc.relationships:
@@ -80,85 +93,128 @@ class Neo4jGraphProvider:
                 """
                 self.graph.query(provenance_query, params={"edges": edges_data})
                 
+            # Update Vector Index for Graph Nodes
+            logger.info("Updating Vector Index for Graph Nodes...")
+            Neo4jVector.from_existing_graph(
+                embedding=self.embeddings,
+                url=self.uri,
+                username=self.username,
+                password=self.password,
+                index_name='entity_index',
+                node_label='__Entity__',
+                text_node_properties=['id'], 
+                embedding_node_property='embedding',
+            )
+            logger.info("Vector Index for Graph Nodes updated successfully.")
+                
         except Exception as e:
-            logger.error(f"Lỗi khi lưu Graph vào Neo4j: {e}")
+            logger.error(f"Error saving Graph to Neo4j: {e}")
             raise e
 
-    def query_graph_context(self, query: str) -> str:
+    def query_graph_context(self, query: str, file_ids: List[str] = None) -> str:
         """
-        1. Dùng LLM trích xuất Entities từ câu hỏi của user.
-        2. Dùng Cypher Query lấy các mối quan hệ (1-hop) xung quanh các Entities đó.
-        3. Format kết quả thành chuỗi văn bản (Graph Facts).
+        1. Embeds the user query to perform Vector Search on the Graph Database.
+        2. Retrieves the top relevant entities using the vector index.
+        3. Uses Cypher Query to fetch 1-hop relationships around those specific Entities.
+        4. Optionally filters the relationships by a list of allowed file_ids.
+        5. Formats the results into a text string (Graph Facts).
         """
         if not self.graph:
-            logger.error("Không có kết nối Neo4j. Không thể truy vấn Graph.")
+            logger.error("No Neo4j connection. Cannot query Graph.")
             raise Exception("Neo4j database is offline or unreachable.")
 
-        # Dùng LLM đơn giản để trích xuất từ khóa chính từ câu hỏi
-        extraction_prompt = ChatPromptTemplate.from_template(
-            "Extract the main agricultural entities (crops, diseases, pesticides, locations) from this question. "
-            "Return ONLY a comma-separated list of entities, no other text.\nQuestion: {query}"
-        )
-        
-        chain = extraction_prompt | self.llm
         try:
-            result = chain.invoke({"query": query})
-            entities_str = result.content.strip()
+            print("\n🕸️ [GRAPH SEARCH RUNNING]", flush=True)
+            print(f"👉 Câu hỏi: {query}", flush=True)
+            if file_ids:
+                print(f"👉 Lọc theo file_ids: {file_ids}", flush=True)
             
-            if not entities_str:
+            # Embed the user query
+            query_embedding = self.embeddings.embed_query(query)
+            
+            # Cypher query for native vector search to find top 5 relevant entities
+            vector_search_cypher = """
+            CALL db.index.vector.queryNodes('entity_index', 5, $query_embedding)
+            YIELD node, score
+            RETURN node.id AS source, score
+            """
+            records = self.graph.query(vector_search_cypher, params={"query_embedding": query_embedding})
+            
+            entities = []
+            print("--- Top Graph Entities (Vector Search) ---", flush=True)
+            for i, record in enumerate(records):
+                source = record.get("source")
+                score = record.get("score")
+                if source:
+                    entities.append(source)
+                    print(f"  > 🔍 Entity {i+1}: {source} | Score: {score:.4f}", flush=True)
+            
+            if not entities:
+                print("  > 🤖 Không tìm thấy Entity nào phù hợp trong Graph.", flush=True)
+                print("-" * 40 + "\n", flush=True)
                 return ""
                 
-            entities = [e.strip() for e in entities_str.split(",") if e.strip()]
-            logger.info(f"Trích xuất Entities từ câu hỏi: {entities}")
-            
             graph_facts = []
             
-            # Khởi tạo Graph Schema nếu chưa có
+            # Refresh Graph Schema just in case
             self.graph.refresh_schema()
 
-            # Cypher query: Tìm các node có name gần giống với các Entity được trích xuất (có thể dùng Vector Index để xịn hơn,
-            # nhưng tạm thời dùng CONTAINS hoặc MATCH case-insensitive để minh họa cơ bản)
-            for entity in entities:
-                cypher = """
+            if file_ids:
+                # Clean file_ids to match how they are stored (without .pdf or .md)
+                clean_file_ids = [f.replace(".pdf", "").replace(".md", "") for f in file_ids]
+                hop_cypher = """
                 MATCH (n)-[r]->(m)
-                WHERE toLower(n.id) CONTAINS toLower($entity) OR toLower(m.id) CONTAINS toLower($entity)
+                WHERE (n.id IN $entities OR m.id IN $entities)
+                  AND size([x IN $file_ids WHERE x IN r.file_ids]) > 0
                 RETURN n.id AS source, type(r) AS relation, m.id AS target, r.file_ids AS file_ids
-                LIMIT 10
+                LIMIT 20
                 """
-                records = self.graph.query(cypher, params={"entity": entity})
-                for record in records:
-                    source = record.get("source")
-                    rel = record.get("relation")
-                    target = record.get("target")
-                    file_ids = record.get("file_ids", [])
-                    source_str = ", ".join(file_ids) if file_ids else "Unknown"
+                hop_records = self.graph.query(hop_cypher, params={"entities": entities, "file_ids": clean_file_ids})
+            else:
+                hop_cypher = """
+                MATCH (n)-[r]->(m)
+                WHERE n.id IN $entities OR m.id IN $entities
+                RETURN n.id AS source, type(r) AS relation, m.id AS target, r.file_ids AS file_ids
+                LIMIT 20
+                """
+                hop_records = self.graph.query(hop_cypher, params={"entities": entities})
+            
+            for record in hop_records:
+                source = record.get("source")
+                rel = record.get("relation")
+                target = record.get("target")
+                rel_file_ids = record.get("file_ids", [])
+                source_str = ", ".join(rel_file_ids) if rel_file_ids else "Unknown"
+                
+                fact = f"- {source} [{rel}] {target} (Source files: {source_str})"
+                if fact not in graph_facts:
+                    graph_facts.append(fact)
                     
-                    fact = f"- {source} [{rel}] {target} (Nguồn file: {source_str})"
-                    if fact not in graph_facts:
-                        graph_facts.append(fact)
-                        
             if graph_facts:
-                logger.info(f"Đã tìm thấy {len(graph_facts)} Graph Facts.")
+                print(f"  > 🔗 Trích xuất thành công {len(graph_facts)} relationships (1-hop).", flush=True)
+                print("-" * 40 + "\n", flush=True)
                 return "\n".join(graph_facts)
             else:
+                print("  > 🤖 Không tìm thấy relationships nào liên quan.", flush=True)
+                print("-" * 40 + "\n", flush=True)
                 return ""
                 
         except Exception as e:
-            logger.error(f"Lỗi khi truy vấn Graph Context: {e}")
+            print(f"[Graph Search Lỗi]: {e}", flush=True)
             return ""
 
     def delete_graph_by_file_id(self, file_id: str):
         """
-        Xóa file_id khỏi thuộc tính `file_ids` của tất cả các Relationships.
-        Sau đó xóa các Relationships không còn bất kỳ file_id nào.
-        Cuối cùng xóa tất cả các Node không còn liên kết nào (Orphan nodes).
+        Removes file_id from the `file_ids` property of all Relationships.
+        Then deletes relationships that no longer belong to any file.
+        Finally deletes all isolated (orphan) nodes.
         """
         if not self.graph:
-            logger.error("Không có kết nối Neo4j. Không thể xóa Graph.")
+            logger.error("No Neo4j connection. Cannot delete Graph.")
             raise Exception("Neo4j database is offline or unreachable.")
             
         try:
-            # 1. Gỡ file_id khỏi mảng file_ids của tất cả các mối quan hệ
+            # 1. Remove file_id from the file_ids array of all relationships
             remove_file_id_query = """
             MATCH ()-[r]->() 
             WHERE $file_id IN r.file_ids
@@ -166,7 +222,7 @@ class Neo4jGraphProvider:
             """
             self.graph.query(remove_file_id_query, params={"file_id": file_id})
             
-            # 2. Xóa các relationship rỗng (không còn thuộc file nào)
+            # 2. Delete empty relationships (not belonging to any file)
             delete_empty_edges_query = """
             MATCH ()-[r]->() 
             WHERE size(r.file_ids) = 0 OR r.file_ids IS NULL
@@ -174,7 +230,7 @@ class Neo4jGraphProvider:
             """
             self.graph.query(delete_empty_edges_query)
             
-            # 3. Xóa tất cả các nodes bị cô lập (không còn bất kỳ cạnh nào)
+            # 3. Delete orphan nodes (having no edges)
             delete_orphan_nodes_query = """
             MATCH (n) 
             WHERE COUNT { (n)--() } = 0 
@@ -182,22 +238,22 @@ class Neo4jGraphProvider:
             """
             self.graph.query(delete_orphan_nodes_query)
             
-            logger.info(f"Đã dọn dẹp Graph cho file: {file_id}. Các Node/Edge chung vẫn được giữ lại an toàn.")
+            logger.info(f"Cleaned up Graph for file: {file_id}. Shared Nodes/Edges are safely kept.")
         except Exception as e:
-            logger.error(f"Lỗi khi xóa Graph cho file_id {file_id}: {e}")
+            logger.error(f"Error deleting Graph for file_id {file_id}: {e}")
             raise e
 
     def get_graph_by_file_id(self, file_id: str) -> dict:
         """
-        Lấy đồ thị (nodes và relationships) liên quan đến một file_id cụ thể.
-        Trả về định dạng phù hợp để vẽ Force Graph.
+        Retrieves the graph (nodes and relationships) related to a specific file_id.
+        Returns a format suitable for rendering a Force Graph.
         """
         if not self.graph:
             return {"nodes": [], "links": []}
 
         try:
-            # Truy vấn tìm tất cả các relationship thuộc file_id này
-            # Lưu ý: file_ids là một mảng được lưu trên mỗi relationship
+            # Query to find all relationships belonging to this file_id
+            # Note: file_ids is an array stored on each relationship
             query = """
             MATCH (n)-[r]->(m)
             WHERE $file_id IN r.file_ids
@@ -210,7 +266,7 @@ class Neo4jGraphProvider:
                 [l IN labels(m) WHERE l <> '__Entity__'][0] AS target_label
             """
             
-            # File ID được sanitize trước khi lưu
+            # Clean file_id before searching
             clean_file_id = file_id.replace(".pdf", "").replace(".md", "")
             records = self.graph.query(query, params={"file_id": clean_file_id})
             
@@ -221,7 +277,7 @@ class Neo4jGraphProvider:
                 source = row["source_id"]
                 target = row["target_id"]
                 
-                # Tránh duplicate node bằng dictionary
+                # Prevent duplicate nodes using a dictionary
                 if source not in nodes_dict:
                     nodes_dict[source] = {"id": source, "label": row["source_label"] or "Entity"}
                 if target not in nodes_dict:
@@ -239,5 +295,5 @@ class Neo4jGraphProvider:
                 "links": links
             }
         except Exception as e:
-            logger.error(f"Lỗi khi get graph by file_id {file_id}: {e}")
+            logger.error(f"Error getting graph by file_id {file_id}: {e}")
             return {"nodes": [], "links": []}

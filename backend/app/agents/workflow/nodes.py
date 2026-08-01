@@ -61,12 +61,12 @@ def router_node(state: AgentState):
     chain = prompt | llm_fast.with_structured_output(RouterOutput)
     result = chain.invoke({"input": state["input"], "user_context": state["user_context"]})
     
-    print("\n" + "="*50)
-    print(f"[ROUTER NODE] Intent: {result.intent}")
-    print(f"[ROUTER NODE] Extracted Station ID: {result.station_id}")
-    print(f"[ROUTER NODE] Extracted Location: {result.location}")
-    print(f"[ROUTER NODE] Extracted Project: {result.project_name}")
-    print("="*50 + "\n")
+    print("\n" + "="*50, flush=True)
+    print(f"[ROUTER NODE] Intent: {result.intent}", flush=True)
+    print(f"[ROUTER NODE] Extracted Station ID: {result.station_id}", flush=True)
+    print(f"[ROUTER NODE] Extracted Location: {result.location}", flush=True)
+    print(f"[ROUTER NODE] Extracted Project: {result.project_name}", flush=True)
+    print("="*50 + "\n", flush=True)
     
     return {
         "intent": result.intent,
@@ -125,12 +125,12 @@ def data_gatherer_node(state: AgentState):
         translation_chain = translation_prompt | llm_fast
         iot_anomalies = translation_chain.invoke({"iot_data": iot_data}).content
 
-    print("\n" + "="*50)
-    print(f"[DATA GATHERER NODE] IoT Data:\n{iot_data}")
-    print(f"[DATA GATHERER NODE] IoT Semantic Translation:\n{iot_anomalies}")
-    print(f"[DATA GATHERER NODE] PPM Data:\n{ppm_data}")
-    print(f"[DATA GATHERER NODE] Weather Data:\n{weather_data}")
-    print("="*50 + "\n")
+    print("\n" + "="*50, flush=True)
+    print(f"[DATA GATHERER NODE] IoT Data:\n{iot_data}", flush=True)
+    print(f"[DATA GATHERER NODE] IoT Semantic Translation:\n{iot_anomalies}", flush=True)
+    print(f"[DATA GATHERER NODE] PPM Data:\n{ppm_data}", flush=True)
+    print(f"[DATA GATHERER NODE] Weather Data:\n{weather_data}", flush=True)
+    print("="*50 + "\n", flush=True)
         
     return {
         "iot_data": iot_data,
@@ -172,21 +172,21 @@ def rag_node(state: AgentState):
         })
         queries = formulated.search_queries
     except Exception as e:
-        print(f"Error in query formulation: {e}")
+        print(f"Error in query formulation: {e}", flush=True)
         queries = [state["input"]]
         
     combined_answers = []
     first_res = None
     
-    print("\n" + "="*50)
+    print("\n" + "="*50, flush=True)
     for q in queries:
         res = rag_skill.run(query=q)
         if not first_res:
             first_res = res
-        print(f"[RAG NODE] Formulated Query: {q}")
-        print(f"[RAG NODE] Retrieved Document Snippets:\n{res.answer}\n")
+        print(f"[RAG NODE] Formulated Query: {q}", flush=True)
+        print(f"[RAG NODE] Retrieved Document Snippets:\n{res.answer}\n", flush=True)
         combined_answers.append(f"--- THÔNG TIN TỪ KHÓA TÌM KIẾM: '{q}' ---\n{res.answer}")
-    print("="*50 + "\n")
+    print("="*50 + "\n", flush=True)
     
     final_rag_data = "\n\n".join(combined_answers)
     
