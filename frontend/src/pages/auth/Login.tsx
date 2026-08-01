@@ -28,15 +28,16 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-[#F3F6FD]">
+    <div className="flex h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-sm border border-gray-100">
         {/* Login Header */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-800">FarmMate AI</h1>
-          <p className="mt-2 text-sm text-gray-500">
+        <div className="mb-10 flex flex-col items-center">
+          <img
+            src="/farmmate-logo.svg"
+            alt="FarmMate AI logo"
+            className="h-20 w-auto object-contain drop-shadow-md mb-2"
+          />
+          <p className="mt-2 text-sm text-gray-500 font-medium tracking-wide">
             Intelligent Agricultural Assistant
           </p>
         </div>
@@ -60,7 +61,7 @@ export const LoginPage: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all disabled:bg-gray-100"
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all disabled:bg-gray-100"
               placeholder="Enter your username"
               required
             />
@@ -76,7 +77,7 @@ export const LoginPage: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all disabled:bg-gray-100"
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all disabled:bg-gray-100"
               placeholder="••••••••"
               required
             />
@@ -85,7 +86,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading || !username || !password}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400 flex justify-center items-center shadow-sm"
+            className="w-full rounded-lg bg-teal-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-teal-400 flex justify-center items-center shadow-sm"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">

@@ -24,10 +24,16 @@ export const KnowledgeWorkspace: React.FC = () => {
   const [viewMode, setViewMode] = useState<'pdf' | 'markdown' | 'chunks' | 'graph'>('pdf');
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [chunksContent, setChunksContent] = useState<any[]>([]);
+  const [chunkPage, setChunkPage] = useState(1);
+  const [chunkPagination, setChunkPagination] = useState({ total: 0, total_pages: 0, limit: 50 });
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
   const [activeSourceText, setActiveSourceText] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
+
+  useEffect(() => {
+    setChunkPage(1);
+  }, [selectedFile?.id]);
 
   useEffect(() => {
     if (!selectedFile) return;
@@ -44,8 +50,9 @@ export const KnowledgeWorkspace: React.FC = () => {
           const md = await knowledgeService.getFileMarkdown(selectedFile.id);
           setMarkdownContent(md);
         } else if (viewMode === 'chunks') {
-          const chunks = await knowledgeService.getFileChunks(selectedFile.id);
-          setChunksContent(chunks);
+          const result = await knowledgeService.getFileChunks(selectedFile.id, chunkPage, 50);
+          setChunksContent(result.data);
+          setChunkPagination(result.pagination);
         } else if (viewMode === 'graph') {
           const graph = await knowledgeService.getFileGraph(selectedFile.id);
           setGraphData(graph);
@@ -63,7 +70,7 @@ export const KnowledgeWorkspace: React.FC = () => {
         URL.revokeObjectURL(currentPdfUrl);
       }
     };
-  }, [selectedFile, viewMode]);
+  }, [selectedFile, viewMode, chunkPage]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -294,7 +301,7 @@ export const KnowledgeWorkspace: React.FC = () => {
       <aside className="w-[300px] shrink-0 bg-white m-2 rounded-2xl shadow-sm overflow-hidden flex flex-col border border-gray-100">
         <div className="p-5 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
             Documents
@@ -310,11 +317,11 @@ export const KnowledgeWorkspace: React.FC = () => {
             />
             <label 
               htmlFor="upload-pdf"
-              className={`p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer flex items-center justify-center ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-teal-600 transition-colors cursor-pointer flex items-center justify-center ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Upload new PDF"
             >
               {isUploading ? (
-                <svg className="animate-spin w-4 h-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <svg className="animate-spin w-4 h-4 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
               )}
@@ -332,7 +339,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                 key={file.id}
                 className={`w-full flex items-center p-3 rounded-xl transition-all gap-3 ${
                   selectedFile?.id === file.id
-                    ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                    ? 'bg-teal-50 border border-teal-200 shadow-sm'
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
@@ -342,7 +349,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                   disabled={file.status === 'processing'}
                   checked={file.status !== 'processing' && selectedFileIds.includes(file.id)}
                   onChange={(e) => handleToggleFile(e, file.id)}
-                  className={`w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ${file.status === 'processing' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                  className={`w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 ${file.status === 'processing' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                   title={file.status === 'processing' ? 'File is processing...' : 'Include in chat filter'}
                 />
                 
@@ -350,7 +357,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                   onClick={() => setSelectedFile(file)}
                   className="flex-1 flex items-start gap-3 min-w-0 text-left"
                 >
-                  <div className={`mt-0.5 ${selectedFile?.id === file.id ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <div className={`mt-0.5 ${selectedFile?.id === file.id ? 'text-teal-600' : 'text-gray-400'}`}>
                     {file.status === 'processing' ? (
                       <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     ) : (
@@ -358,11 +365,11 @@ export const KnowledgeWorkspace: React.FC = () => {
                     )}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <h3 className={`font-medium text-sm truncate ${selectedFile?.id === file.id ? 'text-blue-800' : 'text-gray-700'}`}>
+                    <h3 className={`font-medium text-sm truncate ${selectedFile?.id === file.id ? 'text-teal-800' : 'text-gray-700'}`}>
                       {file.name}
                     </h3>
                     {file.status === 'processing' && (
-                      <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0">Processing</span>
+                      <span className="text-[10px] bg-teal-100 text-teal-600 px-2 py-0.5 rounded-full shrink-0">Processing</span>
                     )}
                   </div>
                 </button>
@@ -394,25 +401,25 @@ export const KnowledgeWorkspace: React.FC = () => {
             <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm text-sm">
               <button
                 onClick={() => setViewMode('pdf')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'pdf' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'pdf' ? 'bg-teal-50 text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
               >
                 PDF
               </button>
               <button
                 onClick={() => setViewMode('markdown')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'markdown' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'markdown' ? 'bg-teal-50 text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
               >
                 Markdown
               </button>
               <button
                 onClick={() => setViewMode('chunks')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'chunks' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'chunks' ? 'bg-teal-50 text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
               >
                 Chunks
               </button>
               <button
                 onClick={() => setViewMode('graph')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'graph' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${viewMode === 'graph' ? 'bg-teal-50 text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
               >
                 Graph
               </button>
@@ -424,7 +431,7 @@ export const KnowledgeWorkspace: React.FC = () => {
           {selectedFile ? (
             isLoadingContent ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
               </div>
             ) : viewMode === 'pdf' ? (
               pdfUrl ? (
@@ -449,7 +456,7 @@ export const KnowledgeWorkspace: React.FC = () => {
             ) : viewMode === 'chunks' ? (
               <div className="absolute inset-0 z-10 overflow-auto bg-gray-50 p-6">
                 <div className="max-w-4xl mx-auto space-y-4">
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">Database Chunks ({chunksContent.length})</h3>
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">Database Chunks ({chunkPagination?.total || 0} total)</h3>
                   {chunksContent.map((chunk, idx) => (
                     <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                       <div className="mb-2 text-xs text-gray-400 bg-gray-100 p-2 rounded-lg font-mono overflow-auto">
@@ -462,6 +469,27 @@ export const KnowledgeWorkspace: React.FC = () => {
                   ))}
                   {chunksContent.length === 0 && (
                     <div className="text-center text-gray-500 py-10">No chunks found in database.</div>
+                  )}
+                  {chunksContent.length > 0 && chunkPagination && chunkPagination.total_pages > 1 && (
+                    <div className="flex justify-between items-center mt-6 mb-8 pt-4 border-t border-gray-200">
+                      <button 
+                        onClick={() => setChunkPage(p => Math.max(1, p - 1))}
+                        disabled={chunkPage === 1}
+                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm font-medium text-gray-500">
+                        Page {chunkPage} of {chunkPagination.total_pages}
+                      </span>
+                      <button 
+                        onClick={() => setChunkPage(p => Math.min(chunkPagination.total_pages, p + 1))}
+                        disabled={chunkPage === chunkPagination.total_pages}
+                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -483,7 +511,7 @@ export const KnowledgeWorkspace: React.FC = () => {
 
       {/* Splitter */}
       <div 
-        className="w-2 cursor-col-resize flex items-center justify-center hover:bg-blue-100 active:bg-blue-200 transition-colors z-10 mx-0.5 rounded-full"
+        className="w-2 cursor-col-resize flex items-center justify-center hover:bg-teal-100 active:bg-teal-200 transition-colors z-10 mx-0.5 rounded-full"
         onMouseDown={() => setIsDragging(true)}
       >
         <div className="h-8 w-1 bg-gray-300 rounded-full" />
@@ -494,12 +522,12 @@ export const KnowledgeWorkspace: React.FC = () => {
         style={{ width: chatWidth }}
         className="shrink-0 bg-white m-2 ml-0 rounded-2xl shadow-sm flex flex-col border border-gray-100 overflow-hidden"
       >
-        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-indigo-600">
+        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-teal-600 to-indigo-600">
           <h2 className="font-semibold text-white flex items-center gap-2">
-            <svg className="w-5 h-5 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+            <svg className="w-5 h-5 text-teal-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
             Ask AI Assistant
           </h2>
-          <p className="text-xs text-blue-100 mt-1 opacity-80">
+          <p className="text-xs text-teal-100 mt-1 opacity-80">
             {selectedFile ? `Chatting about ${selectedFile.name}` : 'Ready to help'}
           </p>
         </div>
@@ -508,7 +536,7 @@ export const KnowledgeWorkspace: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50/30">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3">
+              <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-3">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
               </div>
               <p className="text-gray-500 text-sm">Ask any questions about the documents or farming processes!</p>
@@ -518,7 +546,7 @@ export const KnowledgeWorkspace: React.FC = () => {
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm text-[13px] prose prose-sm max-w-none ${
                   msg.role === 'user' 
-                    ? 'bg-blue-600 text-white rounded-tr-none prose-invert' 
+                    ? 'bg-teal-600 text-white rounded-tr-none prose-invert' 
                     : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
                 }`}>
                   {msg.content ? (
@@ -527,7 +555,7 @@ export const KnowledgeWorkspace: React.FC = () => {
                         {msg.content}
                       </ReactMarkdown>
                       {msg.sources && msg.sources.length > 0 && (
-                        <div className={`mt-3 pt-3 border-t flex flex-wrap gap-2 ${msg.role === 'user' ? 'border-blue-400' : 'border-gray-100'}`}>
+                        <div className={`mt-3 pt-3 border-t flex flex-wrap gap-2 ${msg.role === 'user' ? 'border-teal-400' : 'border-gray-100'}`}>
                           {msg.sources
                             .filter((src: any) => msg.content.includes(`[${src.id}]`))
                             .map((src: any) => (
@@ -536,8 +564,8 @@ export const KnowledgeWorkspace: React.FC = () => {
                               onClick={() => handleSourceClick(src)}
                               className={`text-[11px] px-2 py-1 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
                                 msg.role === 'user' 
-                                  ? 'bg-blue-700/50 text-blue-50 border-blue-500 hover:bg-blue-600' 
-                                  : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100'
+                                  ? 'bg-teal-700/50 text-teal-50 border-teal-500 hover:bg-teal-600' 
+                                  : 'bg-teal-50 text-teal-600 hover:bg-teal-100 border-teal-100'
                               }`}
                               title={src.file_name}
                             >
@@ -570,7 +598,7 @@ export const KnowledgeWorkspace: React.FC = () => {
 
         {/* Chat Input */}
         <div className="p-3 bg-white border-t border-gray-100">
-          <form onSubmit={handleSendChat} className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-2 shadow-sm focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+          <form onSubmit={handleSendChat} className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-2 shadow-sm focus-within:border-teal-300 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
             <input
               type="text"
               value={chatInput}
@@ -584,7 +612,7 @@ export const KnowledgeWorkspace: React.FC = () => {
               disabled={!chatInput.trim() || isChatLoading || !canChat}
               className={`p-2 rounded-lg transition-colors ${
                 chatInput.trim() && !isChatLoading && canChat
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
+                  ? 'bg-teal-600 text-white hover:bg-teal-700 shadow-sm' 
                   : 'bg-transparent text-gray-300'
               }`}
             >

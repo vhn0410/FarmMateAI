@@ -5,8 +5,6 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from app.domain.interfaces.document_provider import IDocumentProvider
 from app.domain.interfaces.vector_db import IVectorStoreProvider
-from app.application.documents.chunking.llm_cleaner import LLMDocumentCleaner
-from app.application.documents.chunking.graph_extractor import GraphExtractor
 from app.application.documents.chunking.graph_extractor import GraphExtractor
 from app.infrastructure.vector_store.graph_provider import Neo4jGraphProvider
 
@@ -34,9 +32,6 @@ class DocumentUseCase:
             ],
             strip_headers=False,
         )
-        
-        # Initialize the LLM document cleaner
-        self.llm_cleaner = LLMDocumentCleaner()
         
         # Initialize the graph extractor and provider
         self.graph_extractor = GraphExtractor()
@@ -67,12 +62,8 @@ class DocumentUseCase:
             # 2. Split the document into parent chunks based on Markdown structure
             md_split_docs = self.markdown_splitter.split_text(doc.page_content)
 
-            # 2.5 Clean the newly generated chunks with the LLM
-            print(f"🧹 Calling the LLM (gpt-4o-mini) to clean {len(md_split_docs)} parent chunks...", flush=True)
-            clean_md_docs = self.llm_cleaner.clean_documents(md_split_docs)
-
             # 3. Attach detailed metadata to each parent chunk
-            for md_doc in clean_md_docs:
+            for md_doc in md_split_docs:
                 enriched_doc = self._enrich_metadata(
                     md_doc, source_file, file_id, file_name
                 )
@@ -81,6 +72,10 @@ class DocumentUseCase:
         print(
             f"✂️ Created {len(natural_parent_docs)} natural parent chunks. Saving to the database...", flush=True
         )
+
+        if not natural_parent_docs:
+            print("No natural parent chunks created! Skipping DB insertion.", flush=True)
+            return "No documents to sync"
 
         try:
             # 3.5. Extract and save the knowledge graph to Neo4j
@@ -182,9 +177,7 @@ class DocumentUseCase:
                     # => Đây là "Tài liệu Zombie", ta phải lập tức Scrub (xóa) nó khỏi DB!
                     if not self.provider.check_pdf_exists(f"{file_id}.pdf"):
                         print(f"⚠️ Detected that file {file_id} was deleted during DB save. Cleaning up zombie chunks!", flush=True)
-                        self.vector_store_provider.delete_documents_by_file_id(file_id)
-                        # Dọn luôn file MD
-                        self.provider.delete_file(file_id)
+                        self.delete_document(file_id)
                     else:
                         self.provider.mark_as_processed(file_id)
             return True

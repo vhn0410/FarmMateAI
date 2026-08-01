@@ -17,6 +17,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 DB_CONNECTION = settings.postgres_connection_string
 COLLECTION_NAME = settings.collection_name
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def get_huggingface_embeddings(model_name: str) -> HuggingFaceEmbeddings:
+    print(f"Loading HuggingFaceEmbeddings into cache: {model_name}...")
+    return HuggingFaceEmbeddings(
+        model_name=model_name,
+        model_kwargs={'device': 'cpu'}, 
+        encode_kwargs={'normalize_embeddings': True}
+    )
 
 class PGVectorProvider(IVectorStoreProvider):
     """
@@ -42,11 +52,7 @@ class PGVectorProvider(IVectorStoreProvider):
         self._docstore = PostgresDocStore(self._engine)
 
     def _get_embeddings_model(self):
-        return HuggingFaceEmbeddings(
-            model_name=settings.huggingface_embedding_model,
-            model_kwargs={'device': 'cpu'}, 
-            encode_kwargs={'normalize_embeddings': True}
-        )
+        return get_huggingface_embeddings(settings.huggingface_embedding_model)
 
     def add_documents(self, documents: List[Document]) -> None:
         """
@@ -145,18 +151,43 @@ class PGVectorProvider(IVectorStoreProvider):
             # 2. Xóa trong bảng DocStore (parent docs)
             conn.execute(text("""
                 DELETE FROM public.langchain_pg_docstore 
-                WHERE document->'metadata'->>'file_id' IN (:id1, :id2)
+                WHERE document::jsonb->'metadata'->>'file_id' IN (:id1, :id2)
             """), {"id1": file_id, "id2": f"{file_id}.md"})
         
         print(f"🗑️ Đã xóa toàn bộ Vector Embeddings của file: {file_id}")
 
-    def get_chunks_by_file_id(self, file_id: str) -> list[dict]:
-        """Lấy toàn bộ các chunks (child chunks) của một file_id."""
+    def get_chunks_by_file_id(self, file_id: str, page: int = 1, limit: int = 50) -> dict:
+        """Lấy các chunks (child chunks) của một file_id có hỗ trợ phân trang."""
         clean_id = file_id.replace(".pdf", "").replace(".md", "")
+        offset = (page - 1) * limit
+        
         with self._engine.begin() as conn:
+            # Lấy tổng số chunks
+            count_result = conn.execute(text("""
+                SELECT COUNT(*) FROM public.langchain_pg_embedding 
+                WHERE cmetadata->>'file_id' IN (:id1, :id2, :id3)
+            """), {"id1": file_id, "id2": f"{clean_id}.md", "id3": clean_id}).scalar()
+            
+            # Lấy dữ liệu chunks theo trang
             rows = conn.execute(text("""
                 SELECT document, cmetadata FROM public.langchain_pg_embedding 
                 WHERE cmetadata->>'file_id' IN (:id1, :id2, :id3)
-            """), {"id1": file_id, "id2": f"{clean_id}.md", "id3": clean_id}).fetchall()
+                ORDER BY cmetadata->>'chunk_index' ASC NULLS LAST
+                LIMIT :limit OFFSET :offset
+            """), {
+                "id1": file_id, "id2": f"{clean_id}.md", "id3": clean_id,
+                "limit": limit, "offset": offset
+            }).fetchall()
             
-            return [{"content": row.document, "metadata": row.cmetadata} for row in rows]
+            chunks = [{"content": row.document, "metadata": row.cmetadata} for row in rows]
+            total_pages = (count_result + limit - 1) // limit if count_result > 0 else 0
+            
+            return {
+                "data": chunks,
+                "pagination": {
+                    "total": count_result,
+                    "page": page,
+                    "limit": limit,
+                    "total_pages": total_pages
+                }
+            }

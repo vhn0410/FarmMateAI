@@ -186,6 +186,9 @@ class S3FileSystemProvider(IDocumentProvider):
 
             # Gọi API Parse
             documents = parser.load_data(temp_path)
+            
+            if not documents:
+                raise Exception("LlamaParse returned 0 documents! Check your credits or the file validity.")
 
             # Gộp text
             md_text = "\n\n".join([doc.text for doc in documents])
@@ -204,6 +207,7 @@ class S3FileSystemProvider(IDocumentProvider):
 
         except Exception as e:
             print(f"❌ Lỗi khi LlamaParse xử lý {pdf_file_name}: {str(e)}")
+            raise e
         finally:
             # Dọn dẹp file tạm
             if os.path.exists(temp_path):

@@ -2,6 +2,13 @@ from typing import List
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def get_cross_encoder_model(model_name: str) -> CrossEncoder:
+    print(f"Loading Cross-Encoder Reranker model into cache: {model_name}...")
+    return CrossEncoder(model_name, max_length=512)
+
 class CrossEncoderReranker:
     """
     Reranker sử dụng mô hình Cross-Encoder để chấm điểm độ liên quan trực tiếp 
@@ -12,8 +19,7 @@ class CrossEncoderReranker:
         model_name: str = "unicamp-dl/mMiniLM-L6-v2-mmarco-v2", 
         top_k: int = 3
     ):
-        print(f"Loading Cross-Encoder Reranker model: {model_name}...")
-        self.model = CrossEncoder(model_name, max_length=512)
+        self.model = get_cross_encoder_model(model_name)
         self.top_k = top_k
 
     def compress_documents(self, documents: List[Document], query: str) -> List[Document]:
