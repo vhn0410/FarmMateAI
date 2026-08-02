@@ -163,26 +163,40 @@ class Neo4jGraphProvider:
                 # Clean file_ids to match how they are stored (without .pdf or .md)
                 clean_file_ids = [f.replace(".pdf", "").replace(".md", "") for f in file_ids]
                 hop_cypher = """
-                MATCH p=(n)-[r*1..2]-(m)
-                WHERE n.id IN $entities
-                UNWIND relationships(p) AS rel
+                UNWIND $entities AS entity_id
+                MATCH (n {id: entity_id})
+                CALL {
+                    WITH n
+                    MATCH p=(n)-[r*1..2]-(m)
+                    UNWIND relationships(p) AS rel
+                    WITH DISTINCT rel
+                    WITH rel, endNode(rel) AS tgt
+                    ORDER BY COUNT { (tgt)--() } DESC
+                    LIMIT 40
+                    RETURN rel
+                }
                 WITH DISTINCT rel
                 WHERE size([x IN $file_ids WHERE x IN rel.file_ids]) > 0
                 WITH rel, startNode(rel) AS src, endNode(rel) AS tgt
-                ORDER BY COUNT { (tgt)--() } DESC
-                LIMIT 40
                 RETURN src.id AS source, type(rel) AS relation, tgt.id AS target, rel.file_ids AS file_ids
                 """
                 hop_records = self.graph.query(hop_cypher, params={"entities": entities, "file_ids": clean_file_ids})
             else:
                 hop_cypher = """
-                MATCH p=(n)-[r*1..2]-(m)
-                WHERE n.id IN $entities
-                UNWIND relationships(p) AS rel
+                UNWIND $entities AS entity_id
+                MATCH (n {id: entity_id})
+                CALL {
+                    WITH n
+                    MATCH p=(n)-[r*1..2]-(m)
+                    UNWIND relationships(p) AS rel
+                    WITH DISTINCT rel
+                    WITH rel, endNode(rel) AS tgt
+                    ORDER BY COUNT { (tgt)--() } DESC
+                    LIMIT 40
+                    RETURN rel
+                }
                 WITH DISTINCT rel
                 WITH rel, startNode(rel) AS src, endNode(rel) AS tgt
-                ORDER BY COUNT { (tgt)--() } DESC
-                LIMIT 40
                 RETURN src.id AS source, type(rel) AS relation, tgt.id AS target, rel.file_ids AS file_ids
                 """
                 hop_records = self.graph.query(hop_cypher, params={"entities": entities})
