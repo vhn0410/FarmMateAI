@@ -13,7 +13,7 @@ export const KnowledgeWorkspace: React.FC = () => {
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   
   // Reuse existing chatbot hook for the chat UI
-  const { messages, isLoading: isChatLoading, sendMessage, sendDocumentMessage } = useChatbot();
+  const { messages, isLoading: isChatLoading, sendDocumentMessage } = useChatbot();
   const [chatInput, setChatInput] = useState('');
 
   // Dragging states
@@ -227,7 +227,7 @@ export const KnowledgeWorkspace: React.FC = () => {
     
     setIsUploading(true);
     try {
-      const newFiles = [];
+      const newFiles: KnowledgeFile[] = [];
       // Upload sequentially to avoid network congestion
       for (const file of selectedFiles) {
         const uploadedFile = await knowledgeService.uploadFile(file);

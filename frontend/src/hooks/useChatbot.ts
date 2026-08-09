@@ -48,9 +48,9 @@ export const useChatbot = () => {
             return msg;
           }));
 
-        } else if (data.event === 'sources' && data.sources) {
+        } else if ((data as any).event === 'sources' && (data as any).sources) {
           setMessages(prev => prev.map(msg =>
-            msg.id === botMsgId ? { ...msg, sources: data.sources } : msg
+            msg.id === botMsgId ? { ...msg, sources: (data as any).sources } : msg
           ));
 
         } else if (data.event === 'token' && data.text) {
@@ -101,9 +101,9 @@ export const useChatbot = () => {
             }
             return msg;
           }));
-        } else if (data.event === 'sources' && data.sources) {
+        } else if ((data as any).event === 'sources' && (data as any).sources) {
           setMessages(prev => prev.map(msg =>
-            msg.id === botMsgId ? { ...msg, sources: data.sources } : msg
+            msg.id === botMsgId ? { ...msg, sources: (data as any).sources } : msg
           ));
         } else if (data.event === 'token' && data.text) {
           setMessages(prev => prev.map(msg =>
