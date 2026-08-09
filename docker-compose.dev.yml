@@ -77,7 +77,7 @@ services:
       - ./backend:/app  # Hot-reload code
       - backend_venv:/app/.venv
       - uv_cache:/root/.cache/uv
-    command: bash -c "uv sync && celery -A app.infrastructure.celery.celery_app worker --loglevel=info"
+    command: bash -c "uv sync && celery -A app.infrastructure.celery.celery_app worker --loglevel=info --concurrency=1"
     depends_on:
       - redis
     networks:

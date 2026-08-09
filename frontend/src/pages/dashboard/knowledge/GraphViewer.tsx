@@ -90,6 +90,8 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({ graphData, activeSourc
       case 'farmingtechnique': return '#8b5cf6'; // violet-500
       case 'soiltype': return '#84cc16'; // lime-500
       case 'weathercondition': return '#06b6d4'; // cyan-500
+      case 'environmentalissue': return '#db2777'; // pink-600
+      case 'organization': return '#4f46e5'; // indigo-600
       default: return '#9ca3af'; // gray-400
     }
   };
@@ -168,6 +170,8 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({ graphData, activeSourc
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#f97316]"></div>Fertilizer</div>
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#3b82f6]"></div>Location</div>
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#8b5cf6]"></div>Farming Technique</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#db2777]"></div>Environmental Issue</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#4f46e5]"></div>Organization</div>
       </div>
     </div>
   );

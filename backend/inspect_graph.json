@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "id": "Đồng Bằng Sông Cửu Long",
+      "labels": [
+        "__Entity__",
+        "Location"
+      ]
+    },
+    {
+      "id": "Lúa",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Lúa Tăng Cường Sinh Học Kẽm",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Lúa Giàu Sắt",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Lúa Có Chỉ Số Đường Huyết Thấp",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Gạo",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Kẽm",
+      "labels": [
+        "__Entity__",
+        "Fertilizer"
+      ]
+    },
+    {
+      "id": "Sắt",
+      "labels": [
+        "__Entity__",
+        "Fertilizer"
+      ]
+    },
+    {
+      "id": "Bệnh Tiểu Đường Loại 2",
+      "labels": [
+        "__Entity__",
+        "Disease"
+      ]
+    },
+    {
+      "id": "Gạo Có Gi Thấp",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Đbscl",
+      "labels": [
+        "__Entity__",
+        "Location"
+      ]
+    },
+    {
+      "id": "Lúa Gạo",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Xâm Nhập Mặn",
+      "labels": [
+        "__Entity__",
+        "Disease"
+      ]
+    },
+    {
+      "id": "Saltol",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Đất Phù Sa",
+      "labels": [
+        "__Entity__",
+        "Soiltype"
+      ]
+    },
+    {
+      "id": "Phân Bón Cân Đối",
+      "labels": [
+        "__Entity__",
+        "Fertilizer"
+      ]
+    },
+    {
+      "id": "Phân Ủ Hữu Cơ",
+      "labels": [
+        "__Entity__",
+        "Fertilizer"
+      ]
+    },
+    {
+      "id": "Phân Vi Lượng",
+      "labels": [
+        "__Entity__",
+        "Fertilizer"
+      ]
+    },
+    {
+      "id": "Lúa Thơm Tiêu Chuẩn (Om5451)",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Tăng Cường Kẽm (Giống Irri)",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Protein Cao / Gi Thấp",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Giàu Sắt Hữu Cơ",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Đồng Tháp",
+      "labels": [
+        "__Entity__",
+        "Location"
+      ]
+    },
+    {
+      "id": "Sóc Trăng",
+      "labels": [
+        "__Entity__",
+        "Location"
+      ]
+    },
+    {
+      "id": "Rice",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    },
+    {
+      "id": "Awd",
+      "labels": [
+        "__Entity__",
+        "Farmingtechnique"
+      ]
+    },
+    {
+      "id": "Nutrientdenserice",
+      "labels": [
+        "__Entity__",
+        "Crop"
+      ]
+    }
+  ],
+  "rels": []
+}

@@ -1,0 +1,124 @@
+{
+  "rels": [
+    {
+      "source": "Đồng Bằng Sông Cửu Long",
+      "rel": "GROWS_IN",
+      "target": "Lúa",
+      "desc": null
+    },
+    {
+      "source": "Lúa Tăng Cường Sinh Học Kẽm",
+      "rel": "GROWS_IN",
+      "target": "Đồng Bằng Sông Cửu Long",
+      "desc": null
+    },
+    {
+      "source": "Lúa Giàu Sắt",
+      "rel": "GROWS_IN",
+      "target": "Đồng Bằng Sông Cửu Long",
+      "desc": null
+    },
+    {
+      "source": "Lúa Có Chỉ Số Đường Huyết Thấp",
+      "rel": "GROWS_IN",
+      "target": "Đồng Bằng Sông Cửu Long",
+      "desc": null
+    },
+    {
+      "source": "Gạo",
+      "rel": "REQUIRES",
+      "target": "Kẽm",
+      "desc": null
+    },
+    {
+      "source": "Gạo",
+      "rel": "REQUIRES",
+      "target": "Sắt",
+      "desc": null
+    },
+    {
+      "source": "Gạo Có Gi Thấp",
+      "rel": "AFFECTS",
+      "target": "Bệnh Tiểu Đường Loại 2",
+      "desc": null
+    },
+    {
+      "source": "Đbscl",
+      "rel": "AFFECTS",
+      "target": "Xâm Nhập Mặn",
+      "desc": null
+    },
+    {
+      "source": "Xâm Nhập Mặn",
+      "rel": "AFFECTS",
+      "target": "Lúa Gạo",
+      "desc": null
+    },
+    {
+      "source": "Đất Phù Sa",
+      "rel": "AFFECTS",
+      "target": "Lúa Gạo",
+      "desc": null
+    },
+    {
+      "source": "Lúa Gạo",
+      "rel": "REQUIRES",
+      "target": "Saltol",
+      "desc": null
+    },
+    {
+      "source": "Lúa Gạo",
+      "rel": "REQUIRES",
+      "target": "Phân Bón Cân Đối",
+      "desc": null
+    },
+    {
+      "source": "Lúa Gạo",
+      "rel": "REQUIRES",
+      "target": "Phân Ủ Hữu Cơ",
+      "desc": null
+    },
+    {
+      "source": "Lúa Gạo",
+      "rel": "REQUIRES",
+      "target": "Phân Vi Lượng",
+      "desc": null
+    },
+    {
+      "source": "Lúa Thơm Tiêu Chuẩn (Om5451)",
+      "rel": "GROWS_IN",
+      "target": "Đồng Tháp",
+      "desc": null
+    },
+    {
+      "source": "Lúa Thơm Tiêu Chuẩn (Om5451)",
+      "rel": "GROWS_IN",
+      "target": "Sóc Trăng",
+      "desc": null
+    },
+    {
+      "source": "Tăng Cường Kẽm (Giống Irri)",
+      "rel": "GROWS_IN",
+      "target": "Đồng Tháp",
+      "desc": null
+    },
+    {
+      "source": "Tăng Cường Kẽm (Giống Irri)",
+      "rel": "GROWS_IN",
+      "target": "Sóc Trăng",
+      "desc": null
+    },
+    {
+      "source": "Protein Cao / Gi Thấp",
+      "rel": "GROWS_IN",
+      "target": "Đồng Tháp",
+      "desc": null
+    },
+    {
+      "source": "Protein Cao / Gi Thấp",
+      "rel": "GROWS_IN",
+      "target": "Sóc Trăng",
+      "desc": null
+    }
+  ]
+}
