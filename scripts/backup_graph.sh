@@ -1,0 +1,6 @@
+#!/bin/bash
+echo "Backing up Neo4j Graph Database from development container..."
+docker exec farmmate_neo4j_dev cypher-shell -u neo4j -p farmmatepassword "CALL apoc.export.cypher.all('backup.cypher', {format: 'cypher-shell', useOptimizations: {type: 'UNWIND_BATCH', unwindBatchSize: 20}});"
+echo "Copying backup file to host..."
+docker cp farmmate_neo4j_dev:/var/lib/neo4j/import/backup.cypher ./neo4j_backup.cypher
+echo "Backup completed. The file neo4j_backup.cypher has been created."

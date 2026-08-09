@@ -7,7 +7,7 @@ interface GraphViewerProps {
 }
 
 export const GraphViewer: React.FC<GraphViewerProps> = ({ graphData, activeSourceText }) => {
-  const fgRef = useRef<any>();
+  const fgRef = useRef<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
 
