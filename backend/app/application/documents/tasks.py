@@ -50,6 +50,18 @@ def process_and_embed_task(self, pdf_name: str):
     finally:
         if 'provider' in locals() and 'file_id' in locals():
             provider.remove_lock(file_id)
+            
+        # Clean up variables holding heavy models/data
+        if 'use_case' in locals():
+            del use_case
+        if 'provider' in locals():
+            del provider
+        if 'vector_provider' in locals():
+            del vector_provider
+            
+        # Force garbage collection to free up RAM (especially important for HuggingFace/PyTorch)
+        import gc
+        gc.collect()
 
 @celery_app.task(bind=True, max_retries=3)
 def sync_all_documents_task(self):
@@ -68,3 +80,12 @@ def sync_all_documents_task(self):
         print(f"Error syncing all documents: {exc}", flush=True)
         traceback.print_exc()
         raise self.retry(exc=exc, countdown=60)
+    finally:
+        if 'use_case' in locals():
+            del use_case
+        if 'provider' in locals():
+            del provider
+        if 'vector_provider' in locals():
+            del vector_provider
+        import gc
+        gc.collect()

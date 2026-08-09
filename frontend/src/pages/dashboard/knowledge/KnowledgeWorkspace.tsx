@@ -222,17 +222,25 @@ export const KnowledgeWorkspace: React.FC = () => {
   }, [files]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
     
     setIsUploading(true);
     try {
-      const newFile = await knowledgeService.uploadFile(file);
-      setFiles(prev => [newFile, ...prev]);
-      setSelectedFile(newFile);
+      const newFiles = [];
+      // Upload sequentially to avoid network congestion
+      for (const file of selectedFiles) {
+        const uploadedFile = await knowledgeService.uploadFile(file);
+        newFiles.push(uploadedFile);
+      }
+      
+      setFiles(prev => [...newFiles.reverse(), ...prev]);
+      if (newFiles.length > 0) {
+        setSelectedFile(newFiles[newFiles.length - 1]);
+      }
     } catch (error) {
-      console.error("Failed to upload file", error);
-      alert("Failed to upload file. Please try again.");
+      console.error("Failed to upload files", error);
+      alert("Failed to upload one or more files. Please try again.");
     } finally {
       setIsUploading(false);
       // Reset input
@@ -310,8 +318,9 @@ export const KnowledgeWorkspace: React.FC = () => {
             <input 
               type="file" 
               id="upload-pdf" 
-              accept="application/pdf" 
+              accept="application/pdf, text/plain, text/markdown" 
               className="hidden" 
+              multiple
               onChange={handleFileUpload} 
               disabled={isUploading}
             />
